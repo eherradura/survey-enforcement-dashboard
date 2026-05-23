@@ -1,9 +1,10 @@
-import pdf from "pdf-parse";
-
 export const runtime = "nodejs";
 
 export async function POST(request) {
   try {
+    const pdfParseModule = await import("pdf-parse");
+    const pdf = pdfParseModule.default || pdfParseModule;
+
     const { fileUrl } = await request.json();
 
     if (!fileUrl) {
