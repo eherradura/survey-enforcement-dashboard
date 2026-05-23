@@ -1,13 +1,12 @@
+export async function GET() {
+  const apiKey = process.env.JOTFORM_API_KEY;
+  const formId = process.env.JOTFORM_FORM_ID;
 
-export async function GET(request) {
-  return new Response(
-    JSON.stringify({
-      message: "Jotform API route working"
-    }),
-    {
-      headers: {
-        "Content-Type": "application/json"
-      }
-    }
+  const response = await fetch(
+    `https://api.jotform.com/form/${formId}/submissions?apiKey=${apiKey}`
   );
+
+  const data = await response.json();
+
+  return Response.json(data);
 }
