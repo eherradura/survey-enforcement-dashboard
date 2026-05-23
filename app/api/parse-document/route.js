@@ -2,24 +2,27 @@ export const runtime = "nodejs";
 
 export async function POST(request) {
   try {
-    const pdfParseModule = await import("pdf-parse");
-    const pdf = pdfParseModule.default || pdfParseModule;
-
     const { fileUrl } = await request.json();
+    const apiKey = process.env.OCR_SPACE_API_KEY;
 
     if (!fileUrl) {
       return Response.json({ error: "Missing fileUrl" }, { status: 400 });
     }
 
-    const response = await fetch(fileUrl);
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const ocrUrl = `https://api.ocr.space/parse/imageurl?apikey=${apiKey}&url=${encodeURIComponent(
+      fileUrl
+    )}&language=eng&isOverlayRequired=false&detectOrientation=true&scale=true&OCREngine=2`;
 
-    const parsed = await pdf(buffer);
-    const text = parsed.text || "";
+    const response = await fetch(ocrUrl);
+    const data = await response.json();
+
+    const text =
+      data?.ParsedResults?.map((r) => r.ParsedText).join("\n") || "";
+
     const cleanText = text.replace(/\s+/g, " ").trim();
 
     const isRecertification =
-      /recertification|standard survey|annual survey/i.test(cleanText);
+      /recertification|annual survey|standard survey/i.test(cleanText);
 
     const intakeMatch =
       cleanText.match(/intake\s*(number|#)?\s*[:#]?\s*([A-Z0-9-]+)/i) ||
@@ -33,50 +36,36 @@ export async function POST(request) {
       : null;
 
     const deficiencyMatches = [
-      ...cleanText.matchAll(/\bF\s?(\d{3})\b.{0,120}?\b([A-L])\b/gi),
+      ...cleanText.matchAll(/\bF\s?0?(\d{3})\b.{0,80}?(SS\s*=\s*|Scope\s*Severity\s*)?([A-L])/gi),
     ].map((m) => ({
       ftag: `F${m[1]}`,
-      scopeSeverity: m[2],
+      scopeSeverity: m[3],
     }));
 
-    const fallbackFtags = [...cleanText.matchAll(/\bF\s?(\d{3})\b/gi)].map(
-      (m) => ({
-        ftag: `F${m[1]}`,
-        scopeSeverity: null,
-      })
-    );
-
-    const merged = [...deficiencyMatches, ...fallbackFtags];
-
-    const uniqueDeficiencies = [];
+    const unique = [];
     const seen = new Set();
 
-    for (const item of merged) {
-      const key = `${item.ftag}-${item.scopeSeverity || ""}`;
-
+    for (const item of deficiencyMatches) {
+      const key = `${item.ftag}-${item.scopeSeverity}`;
       if (!seen.has(key)) {
         seen.add(key);
-        uniqueDeficiencies.push(item);
+        unique.push(item);
       }
     }
 
     return Response.json({
       success: true,
       intakeNumberFromPdf,
-      deficienciesFound: uniqueDeficiencies.length > 0,
-      deficiencies: uniqueDeficiencies,
-      ftags: uniqueDeficiencies.map((d) => d.ftag),
-      scopeSeverity: uniqueDeficiencies
-        .map((d) => d.scopeSeverity)
-        .filter(Boolean),
-      textPreview: cleanText.slice(0, 2000),
+      deficienciesFound: unique.length > 0,
+      deficiencies: unique,
+      ftags: unique.map((d) => d.ftag),
+      scopeSeverity: unique.map((d) => d.scopeSeverity),
+      textPreview: cleanText.slice(0, 3000),
+      rawOcrMessage: data?.OCRExitCode,
     });
   } catch (error) {
     return Response.json(
-      {
-        success: false,
-        error: error.message,
-      },
+      { success: false, error: error.message },
       { status: 500 }
     );
   }
