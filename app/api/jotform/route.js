@@ -3,7 +3,7 @@ export async function GET() {
   const formId = process.env.JOTFORM_FORM_ID;
 
   const response = await fetch(
-    `https://hipaa-api.jotform.com/form/${formId}/submissions?apiKey=${apiKey}`
+    `https://hipaa-api.jotform.com/form/${formId}/submissions?apiKey=${apiKey}&limit=1000`
   );
 
   const data = await response.json();
