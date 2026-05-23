@@ -12,26 +12,41 @@ export default function Home() {
       const data = await res.json();
       setSubmissions(data.content || []);
     }
+
     loadData();
   }, []);
 
   function getAnswer(answers, id) {
     const field = answers?.[id];
-    if (!field) return "N/A";
+
+    if (!field) return "No information available";
 
     if (field.prettyFormat) return field.prettyFormat;
 
     if (field.options_array && field.answer) {
       try {
         const options = JSON.parse(field.options_array);
-        const selectedKey = String(field.answer).replace("{", "").replace("}", "");
+        const selectedKey = String(field.answer)
+          .replace("{", "")
+          .replace("}", "");
+
         return options[selectedKey]?.value || field.answer;
       } catch {
         return field.answer;
       }
     }
 
-    return field.answer || "N/A";
+    return field.answer || "No information available";
+  }
+
+  function getUploads(answers) {
+    const uploads = answers?.["72"]?.answer;
+
+    if (!uploads || !Array.isArray(uploads)) {
+      return [];
+    }
+
+    return uploads;
   }
 
   const facilities = useMemo(() => {
@@ -45,128 +60,121 @@ export default function Home() {
   const filteredSubmissions =
     selectedFacility === "All Facilities"
       ? submissions
-      : submissions.filter((s) => s.answers?.["3"]?.answer === selectedFacility);
-
-  const openCycles = filteredSubmissions.filter(
-    (s) => getAnswer(s.answers, "71").toLowerCase().includes("open")
-  ).length;
-
-  const withDeficiencies = filteredSubmissions.filter(
-    (s) => getAnswer(s.answers, "74").toLowerCase().includes("yes")
-  ).length;
+      : submissions.filter(
+          (s) => s.answers?.["3"]?.answer === selectedFacility
+        );
 
   return (
     <main style={styles.page}>
       <section style={styles.hero}>
-        <div>
-          <p style={styles.kicker}>Survey Intelligence</p>
-          <h1 style={styles.title}>Enforcement Cycle Dashboard</h1>
-          <p style={styles.subtitle}>
-            Track survey activity, open cycles, DPNA risk, termination dates, and deficiencies from Jotform.
-          </p>
-        </div>
+        <h1 style={styles.title}>Survey Enforcement Dashboard</h1>
+
+        <p style={styles.subtitle}>
+          Live survey activity pulled directly from Jotform.
+        </p>
       </section>
 
-      <section style={styles.controls}>
-        <div>
-          <label style={styles.label}>Select Facility</label>
-          <select
-            value={selectedFacility}
-            onChange={(e) => setSelectedFacility(e.target.value)}
-            style={styles.select}
-          >
-            {facilities.map((facility) => (
-              <option key={facility} value={facility}>
-                {facility}
-              </option>
-            ))}
-          </select>
-        </div>
+      <section style={styles.filterSection}>
+        <label style={styles.label}>Select Facility</label>
+
+        <select
+          value={selectedFacility}
+          onChange={(e) => setSelectedFacility(e.target.value)}
+          style={styles.select}
+        >
+          {facilities.map((facility) => (
+            <option key={facility} value={facility}>
+              {facility}
+            </option>
+          ))}
+        </select>
       </section>
 
-      <section style={styles.statsGrid}>
-        <div style={styles.statCard}>
-          <p style={styles.statLabel}>Survey Records</p>
-          <h2 style={styles.statNumber}>{filteredSubmissions.length}</h2>
-        </div>
+      {filteredSubmissions.map((submission) => {
+        const answers = submission.answers;
+        const uploads = getUploads(answers);
 
-        <div style={styles.statCard}>
-          <p style={styles.statLabel}>Open Cycles</p>
-          <h2 style={styles.statNumber}>{openCycles}</h2>
-        </div>
+        return (
+          <section key={submission.id} style={styles.card}>
+            <div style={styles.cardTop}>
+              <div>
+                <h2 style={styles.facilityName}>
+                  {getAnswer(answers, "3")}
+                </h2>
 
-        <div style={styles.statCard}>
-          <p style={styles.statLabel}>With Deficiencies</p>
-          <h2 style={styles.statNumber}>{withDeficiencies}</h2>
-        </div>
-      </section>
+                <p style={styles.meta}>
+                  {getAnswer(answers, "4")} • Intake #
+                  {getAnswer(answers, "6")}
+                </p>
+              </div>
 
-      <section>
-        {filteredSubmissions.map((submission) => {
-          const answers = submission.answers;
-          const cycle = getAnswer(answers, "71");
-          const deficiency = getAnswer(answers, "74");
-
-          return (
-            <article key={submission.id} style={styles.card}>
-              <div style={styles.cardHeader}>
-                <div>
-                  <h2 style={styles.facility}>{getAnswer(answers, "3")}</h2>
-                  <p style={styles.meta}>
-                    {getAnswer(answers, "4")} • Intake {getAnswer(answers, "6")}
-                  </p>
-                </div>
-
-                <div style={styles.badgeWrap}>
-                  <span style={cycle.toLowerCase().includes("open") ? styles.badgeRed : styles.badgeGreen}>
-                    {cycle}
+              <div>
+                {uploads.length > 0 ? (
+                  <span style={styles.uploadedBadge}>
+                    {uploads.length} Document(s) Uploaded
                   </span>
-                  <span style={deficiency.toLowerCase().includes("yes") ? styles.badgeAmber : styles.badgeBlue}>
-                    Deficiency: {deficiency}
+                ) : (
+                  <span style={styles.missingBadge}>
+                    No Documents Uploaded
                   </span>
-                </div>
+                )}
+              </div>
+            </div>
+
+            <div style={styles.grid}>
+              <div>
+                <strong>Survey Entrance</strong>
+                <p>{getAnswer(answers, "5")}</p>
               </div>
 
-              <div style={styles.timeline}>
-                <div style={styles.timelineItem}>
-                  <span style={styles.dot}></span>
-                  <p style={styles.timeLabel}>Entrance</p>
-                  <strong>{getAnswer(answers, "5")}</strong>
-                </div>
-
-                <div style={styles.line}></div>
-
-                <div style={styles.timelineItem}>
-                  <span style={styles.dot}></span>
-                  <p style={styles.timeLabel}>Last Day</p>
-                  <strong>{getAnswer(answers, "67")}</strong>
-                </div>
-
-                <div style={styles.line}></div>
-
-                <div style={styles.timelineItem}>
-                  <span style={styles.dotDanger}></span>
-                  <p style={styles.timeLabel}>DPNA</p>
-                  <strong>{getAnswer(answers, "68")}</strong>
-                </div>
-
-                <div style={styles.line}></div>
-
-                <div style={styles.timelineItem}>
-                  <span style={styles.dotDark}></span>
-                  <p style={styles.timeLabel}>Termination</p>
-                  <strong>{getAnswer(answers, "69")}</strong>
-                </div>
+              <div>
+                <strong>Last Day of Survey</strong>
+                <p>{getAnswer(answers, "67")}</p>
               </div>
 
-              <div style={styles.details}>
-                <p><strong>Completion Date:</strong> {getAnswer(answers, "70")}</p>
-                <p><strong>Comments:</strong> {getAnswer(answers, "10")}</p>
+              <div>
+                <strong>DPNA Date</strong>
+                <p>{getAnswer(answers, "68")}</p>
               </div>
-            </article>
-          );
-        })}
-      </section>
+
+              <div>
+                <strong>Termination Date</strong>
+                <p>{getAnswer(answers, "69")}</p>
+              </div>
+
+              <div>
+                <strong>Completion Date</strong>
+                <p>{getAnswer(answers, "70")}</p>
+              </div>
+
+              <div>
+                <strong>Enforcement Cycle</strong>
+                <p>{getAnswer(answers, "71")}</p>
+              </div>
+            </div>
+
+            <div style={styles.documentsSection}>
+              <h3>Uploaded Documents</h3>
+
+              {uploads.length === 0 ? (
+                <p>No uploaded documents found.</p>
+              ) : (
+                uploads.map((file, index) => (
+                  <a
+                    key={index}
+                    href={file}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={styles.documentLink}
+                  >
+                    View PDF {index + 1}
+                  </a>
+                ))
+              )}
+            </div>
+          </section>
+        );
+      })}
     </main>
   );
 }
@@ -174,179 +182,106 @@ export default function Home() {
 const styles = {
   page: {
     minHeight: "100vh",
-    background: "linear-gradient(135deg, #eef4ff 0%, #f8fafc 45%, #ffffff 100%)",
+    background: "#f3f6fb",
     padding: "40px",
-    fontFamily: "Arial, sans-serif",
-    color: "#102033",
+    fontFamily: "Arial",
   },
+
   hero: {
-    background: "linear-gradient(135deg, #0f2a4a, #174f7a)",
-    color: "white",
-    padding: "36px",
-    borderRadius: "28px",
-    marginBottom: "24px",
-    boxShadow: "0 18px 40px rgba(15, 42, 74, 0.25)",
+    marginBottom: "30px",
   },
-  kicker: {
-    textTransform: "uppercase",
-    letterSpacing: "2px",
-    fontSize: "12px",
-    opacity: 0.8,
-    margin: 0,
-  },
+
   title: {
-    fontSize: "44px",
-    margin: "8px 0",
+    fontSize: "48px",
+    marginBottom: "10px",
   },
+
   subtitle: {
-    maxWidth: "760px",
-    fontSize: "17px",
-    lineHeight: 1.5,
-    opacity: 0.9,
+    fontSize: "18px",
+    color: "#555",
   },
-  controls: {
+
+  filterSection: {
     background: "white",
-    padding: "22px",
-    borderRadius: "20px",
-    marginBottom: "20px",
-    boxShadow: "0 8px 24px rgba(15, 42, 74, 0.08)",
+    padding: "20px",
+    borderRadius: "16px",
+    marginBottom: "24px",
   },
+
   label: {
     display: "block",
-    fontWeight: "700",
-    marginBottom: "8px",
+    marginBottom: "10px",
+    fontWeight: "bold",
   },
+
   select: {
-    padding: "14px 16px",
-    borderRadius: "14px",
-    border: "1px solid #cbd5e1",
-    fontSize: "16px",
-    minWidth: "340px",
+    padding: "12px",
+    borderRadius: "10px",
+    minWidth: "300px",
   },
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: "18px",
-    marginBottom: "24px",
-  },
-  statCard: {
-    background: "white",
-    padding: "22px",
-    borderRadius: "20px",
-    boxShadow: "0 8px 24px rgba(15, 42, 74, 0.08)",
-  },
-  statLabel: {
-    margin: 0,
-    color: "#64748b",
-    fontWeight: "700",
-  },
-  statNumber: {
-    fontSize: "38px",
-    margin: "8px 0 0",
-  },
+
   card: {
     background: "white",
-    padding: "26px",
-    borderRadius: "24px",
-    marginBottom: "20px",
-    boxShadow: "0 10px 30px rgba(15, 42, 74, 0.09)",
-    border: "1px solid #e5e7eb",
+    padding: "24px",
+    borderRadius: "20px",
+    marginBottom: "24px",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
   },
-  cardHeader: {
+
+  cardTop: {
     display: "flex",
     justifyContent: "space-between",
+    marginBottom: "20px",
+    gap: "20px",
+  },
+
+  facilityName: {
+    margin: 0,
+    fontSize: "30px",
+  },
+
+  meta: {
+    color: "#666",
+  },
+
+  uploadedBadge: {
+    background: "#dcfce7",
+    color: "#166534",
+    padding: "10px 14px",
+    borderRadius: "999px",
+    fontWeight: "bold",
+  },
+
+  missingBadge: {
+    background: "#fee2e2",
+    color: "#991b1b",
+    padding: "10px 14px",
+    borderRadius: "999px",
+    fontWeight: "bold",
+  },
+
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: "20px",
     marginBottom: "24px",
   },
-  facility: {
-    margin: 0,
-    fontSize: "24px",
-  },
-  meta: {
-    color: "#64748b",
-    marginTop: "6px",
-  },
-  badgeWrap: {
-    display: "flex",
-    gap: "10px",
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-  },
-  badgeRed: {
-    background: "#fee2e2",
-    color: "#991b1b",
-    padding: "8px 12px",
-    borderRadius: "999px",
-    fontWeight: "700",
-  },
-  badgeGreen: {
-    background: "#dcfce7",
-    color: "#166534",
-    padding: "8px 12px",
-    borderRadius: "999px",
-    fontWeight: "700",
-  },
-  badgeAmber: {
-    background: "#fef3c7",
-    color: "#92400e",
-    padding: "8px 12px",
-    borderRadius: "999px",
-    fontWeight: "700",
-  },
-  badgeBlue: {
-    background: "#dbeafe",
-    color: "#1e40af",
-    padding: "8px 12px",
-    borderRadius: "999px",
-    fontWeight: "700",
-  },
-  timeline: {
-    display: "grid",
-    gridTemplateColumns: "1fr 60px 1fr 60px 1fr 60px 1fr",
-    alignItems: "center",
+
+  documentsSection: {
     background: "#f8fafc",
     padding: "20px",
-    borderRadius: "18px",
-    marginBottom: "18px",
-  },
-  timelineItem: {
-    textAlign: "center",
-  },
-  dot: {
-    display: "inline-block",
-    width: "14px",
-    height: "14px",
-    borderRadius: "50%",
-    background: "#2563eb",
-  },
-  dotDanger: {
-    display: "inline-block",
-    width: "14px",
-    height: "14px",
-    borderRadius: "50%",
-    background: "#dc2626",
-  },
-  dotDark: {
-    display: "inline-block",
-    width: "14px",
-    height: "14px",
-    borderRadius: "50%",
-    background: "#111827",
-  },
-  line: {
-    height: "3px",
-    background: "#cbd5e1",
-  },
-  timeLabel: {
-    margin: "6px 0",
-    fontSize: "13px",
-    color: "#64748b",
-    fontWeight: "700",
-  },
-  details: {
-    background: "#f8fafc",
     borderRadius: "16px",
-    padding: "16px",
-    color: "#334155",
+  },
+
+  documentLink: {
+    display: "inline-block",
+    marginRight: "12px",
+    marginBottom: "12px",
+    background: "#2563eb",
+    color: "white",
+    padding: "10px 14px",
+    borderRadius: "10px",
+    textDecoration: "none",
+    fontWeight: "bold",
   },
 };
