@@ -192,7 +192,9 @@ export default function Home() {
 
                           <p>
                             <strong>F-Tags:</strong>{" "}
-                            {parsed.ftags?.length ? parsed.ftags.join(", ") : "None found"}
+                            {parsed.ftags?.length
+                              ? parsed.ftags.join(", ")
+                              : "None found"}
                           </p>
 
                           <p>
@@ -202,9 +204,11 @@ export default function Home() {
                               : "None found"}
                           </p>
 
-                          <details>
-                            <summary>Text Preview</summary>
-                            <pre style={styles.preview}>{parsed.textPreview}</pre>
+                          <details open>
+                            <summary>Text Preview / OCR Debug</summary>
+                            <pre style={styles.preview}>
+                              {JSON.stringify(parsed, null, 2)}
+                            </pre>
                           </details>
                         </div>
                       )}
@@ -340,7 +344,7 @@ const styles = {
     color: "white",
     padding: "12px",
     borderRadius: "10px",
-    maxHeight: "240px",
+    maxHeight: "360px",
     overflow: "auto",
   },
 };
