@@ -285,10 +285,12 @@ export default function Home() {
     return summary;
   }, {});
 
-  const surveyTypeBreakdownText = Object.entries(surveyTypeBreakdown)
+  const surveyTypeBreakdownItems = Object.entries(surveyTypeBreakdown)
     .sort((a, b) => b[1] - a[1])
-    .map(([type, count]) => `${type}: ${count}`)
-    .join(" • ");
+    .map(([type, count]) => ({
+      type,
+      count,
+    }));
 
   return (
     <main style={styles.page}>
@@ -337,9 +339,21 @@ export default function Home() {
           <div style={styles.eventTile}>
             <p style={styles.eventTileLabel}>Survey Events</p>
             <h2 style={styles.eventTileNumber}>{filteredSubmissions.length}</h2>
-            <p style={styles.breakdownText}>
-              {surveyTypeBreakdownText || "No survey activity"}
-            </p>
+
+            <div style={styles.breakdownList}>
+              {surveyTypeBreakdownItems.length > 0 ? (
+                surveyTypeBreakdownItems.map((item) => (
+                  <div key={item.type} style={styles.breakdownItem}>
+                    <span>{item.type}</span>
+                    <strong>{item.count}</strong>
+                  </div>
+                ))
+              ) : (
+                <div style={styles.breakdownItem}>
+                  <span>No survey activity</span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div style={styles.eventTile}>
@@ -659,12 +673,23 @@ const styles = {
     letterSpacing: "-1px",
   },
 
-  breakdownText: {
-    margin: "10px 0 0",
+  breakdownList: {
+    marginTop: "14px",
+    display: "grid",
+    gap: "8px",
+  },
+
+  breakdownItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "14px",
     color: "#475569",
     fontSize: "13px",
-    lineHeight: 1.45,
+    lineHeight: 1.35,
     fontWeight: "700",
+    borderTop: "1px solid #e2e8f0",
+    paddingTop: "8px",
   },
 
   severityText: {
