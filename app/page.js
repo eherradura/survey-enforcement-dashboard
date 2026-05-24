@@ -4,15 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 
 export default function Home() {
   const [submissions, setSubmissions] = useState([]);
+  const [driveData, setDriveData] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState("All Facilities");
   const [parsedDocs, setParsedDocs] = useState({});
   const [loadingDoc, setLoadingDoc] = useState(null);
 
   useEffect(() => {
     async function loadData() {
-      const res = await fetch("/api/jotform");
-      const data = await res.json();
-      setSubmissions(data.content || []);
+      const jotformRes = await fetch("/api/jotform");
+      const jotformData = await jotformRes.json();
+      setSubmissions(jotformData.content || []);
+
+      const driveRes = await fetch("/api/drive-files");
+      const driveJson = await driveRes.json();
+      setDriveData(driveJson.submissions || []);
     }
 
     loadData();
@@ -27,7 +32,10 @@ export default function Home() {
     if (field.options_array && field.answer) {
       try {
         const options = JSON.parse(field.options_array);
-        const selectedKey = String(field.answer).replace("{", "").replace("}", "");
+        const selectedKey = String(field.answer)
+          .replace("{", "")
+          .replace("}", "");
+
         return options[selectedKey]?.value || field.answer;
       } catch {
         return field.answer;
@@ -37,9 +45,12 @@ export default function Home() {
     return field.answer || "No information available";
   }
 
-  function getUploads(answers) {
-    const uploads = answers?.["72"]?.answer;
-    return Array.isArray(uploads) ? uploads : [];
+  function getDriveDocumentsForSubmission(submissionId) {
+    const match = driveData.find(
+      (folder) => String(folder.submissionId) === String(submissionId)
+    );
+
+    return match?.files || [];
   }
 
   async function parsePdf(fileUrl, key) {
@@ -76,33 +87,57 @@ export default function Home() {
       ? submissions
       : submissions.filter((s) => s.answers?.["3"]?.answer === selectedFacility);
 
+  const totalDriveDocuments = filteredSubmissions.reduce((count, submission) => {
+    return count + getDriveDocumentsForSubmission(submission.id).length;
+  }, 0);
+
   return (
     <main style={styles.page}>
       <section style={styles.hero}>
+        <p style={styles.kicker}>Survey Intelligence</p>
         <h1 style={styles.title}>Survey Enforcement Dashboard</h1>
         <p style={styles.subtitle}>
-          Live survey activity pulled from Jotform with document parsing support.
+          Live survey activity from Jotform, with documents matched from Google Drive.
         </p>
       </section>
 
       <section style={styles.filterSection}>
-        <label style={styles.label}>Select Facility</label>
-        <select
-          value={selectedFacility}
-          onChange={(e) => setSelectedFacility(e.target.value)}
-          style={styles.select}
-        >
-          {facilities.map((facility) => (
-            <option key={facility} value={facility}>
-              {facility}
-            </option>
-          ))}
-        </select>
+        <div>
+          <label style={styles.label}>Select Facility</label>
+          <select
+            value={selectedFacility}
+            onChange={(e) => setSelectedFacility(e.target.value)}
+            style={styles.select}
+          >
+            {facilities.map((facility) => (
+              <option key={facility} value={facility}>
+                {facility}
+              </option>
+            ))}
+          </select>
+        </div>
+      </section>
+
+      <section style={styles.statsGrid}>
+        <div style={styles.statCard}>
+          <p style={styles.statLabel}>Survey Records Shown</p>
+          <h2 style={styles.statNumber}>{filteredSubmissions.length}</h2>
+        </div>
+
+        <div style={styles.statCard}>
+          <p style={styles.statLabel}>Drive Documents Matched</p>
+          <h2 style={styles.statNumber}>{totalDriveDocuments}</h2>
+        </div>
+
+        <div style={styles.statCard}>
+          <p style={styles.statLabel}>Drive Submission Folders</p>
+          <h2 style={styles.statNumber}>{driveData.length}</h2>
+        </div>
       </section>
 
       {filteredSubmissions.map((submission) => {
         const answers = submission.answers;
-        const uploads = getUploads(answers);
+        const driveDocs = getDriveDocumentsForSubmission(submission.id);
 
         return (
           <section key={submission.id} style={styles.card}>
@@ -112,14 +147,19 @@ export default function Home() {
                 <p style={styles.meta}>
                   {getAnswer(answers, "4")} • Intake #{getAnswer(answers, "6")}
                 </p>
+                <p style={styles.submissionId}>
+                  Jotform Submission ID: {submission.id}
+                </p>
               </div>
 
-              {uploads.length > 0 ? (
+              {driveDocs.length > 0 ? (
                 <span style={styles.uploadedBadge}>
-                  {uploads.length} Document(s) Uploaded
+                  {driveDocs.length} Drive Document(s) Found
                 </span>
               ) : (
-                <span style={styles.missingBadge}>No Documents Uploaded</span>
+                <span style={styles.missingBadge}>
+                  No Drive Documents Matched
+                </span>
               )}
             </div>
 
@@ -128,22 +168,27 @@ export default function Home() {
                 <strong>Survey Entrance</strong>
                 <p>{getAnswer(answers, "5")}</p>
               </div>
+
               <div>
                 <strong>Last Day of Survey</strong>
                 <p>{getAnswer(answers, "67")}</p>
               </div>
+
               <div>
                 <strong>DPNA Date</strong>
                 <p>{getAnswer(answers, "68")}</p>
               </div>
+
               <div>
                 <strong>Termination Date</strong>
                 <p>{getAnswer(answers, "69")}</p>
               </div>
+
               <div>
                 <strong>Completion Date</strong>
                 <p>{getAnswer(answers, "70")}</p>
               </div>
+
               <div>
                 <strong>Enforcement Cycle</strong>
                 <p>{getAnswer(answers, "71")}</p>
@@ -151,32 +196,51 @@ export default function Home() {
             </div>
 
             <div style={styles.documentsSection}>
-              <h3>Uploaded Documents</h3>
+              <h3 style={styles.sectionTitle}>Google Drive Documents</h3>
 
-              {uploads.length === 0 ? (
-                <p>No uploaded documents found.</p>
+              {driveDocs.length === 0 ? (
+                <p style={styles.noDocs}>
+                  No Google Drive documents found for this submission yet.
+                </p>
               ) : (
-                uploads.map((file, index) => {
-                  const key = `${submission.id}-${index}`;
+                driveDocs.map((file, index) => {
+                  const key = `${submission.id}-${file.fileId}`;
                   const parsed = parsedDocs[key];
 
                   return (
-                    <div key={key} style={styles.documentBox}>
-                      <a
-                        href={file}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={styles.documentLink}
-                      >
-                        View PDF {index + 1}
-                      </a>
+                    <div key={file.fileId} style={styles.documentBox}>
+                      <div style={styles.documentHeader}>
+                        <div>
+                          <p style={styles.documentName}>
+                            Document {index + 1}
+                          </p>
+                          <p style={styles.documentMeta}>
+                            {file.name || "Unnamed PDF"}
+                          </p>
+                        </div>
 
-                      <button
-                        onClick={() => parsePdf(file, key)}
-                        style={styles.parseButton}
-                      >
-                        {loadingDoc === key ? "Parsing..." : "Parse PDF"}
-                      </button>
+                        <span style={styles.pdfBadge}>PDF</span>
+                      </div>
+
+                      <div style={styles.buttonRow}>
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={styles.documentLink}
+                        >
+                          View in Drive
+                        </a>
+
+                        <button
+                          onClick={() =>
+                            parsePdf(file.downloadUrl || file.url, key)
+                          }
+                          style={styles.parseButton}
+                        >
+                          {loadingDoc === key ? "Parsing..." : "Parse PDF"}
+                        </button>
+                      </div>
 
                       {parsed && (
                         <div style={styles.parseResult}>
@@ -204,8 +268,8 @@ export default function Home() {
                               : "None found"}
                           </p>
 
-                          <details open>
-                            <summary>Text Preview / OCR Debug</summary>
+                          <details>
+                            <summary>Text Preview / Debug</summary>
                             <pre style={styles.preview}>
                               {JSON.stringify(parsed, null, 2)}
                             </pre>
@@ -227,95 +291,208 @@ export default function Home() {
 const styles = {
   page: {
     minHeight: "100vh",
-    background: "#f3f6fb",
+    background: "linear-gradient(135deg, #eef4ff 0%, #f8fafc 45%, #ffffff 100%)",
     padding: "40px",
-    fontFamily: "Arial",
+    fontFamily: "Arial, sans-serif",
+    color: "#102033",
   },
+
   hero: {
-    marginBottom: "30px",
+    background: "linear-gradient(135deg, #0f2a4a, #174f7a)",
+    color: "white",
+    padding: "36px",
+    borderRadius: "28px",
+    marginBottom: "24px",
+    boxShadow: "0 18px 40px rgba(15, 42, 74, 0.25)",
   },
+
+  kicker: {
+    textTransform: "uppercase",
+    letterSpacing: "2px",
+    fontSize: "12px",
+    opacity: 0.8,
+    margin: 0,
+  },
+
   title: {
-    fontSize: "48px",
-    marginBottom: "10px",
+    fontSize: "44px",
+    margin: "8px 0",
   },
+
   subtitle: {
-    fontSize: "18px",
-    color: "#555",
+    maxWidth: "760px",
+    fontSize: "17px",
+    lineHeight: 1.5,
+    opacity: 0.9,
   },
+
   filterSection: {
     background: "white",
-    padding: "20px",
-    borderRadius: "16px",
-    marginBottom: "24px",
+    padding: "22px",
+    borderRadius: "20px",
+    marginBottom: "20px",
+    boxShadow: "0 8px 24px rgba(15, 42, 74, 0.08)",
   },
+
   label: {
     display: "block",
-    marginBottom: "10px",
-    fontWeight: "bold",
+    fontWeight: "700",
+    marginBottom: "8px",
   },
+
   select: {
-    padding: "12px",
-    borderRadius: "10px",
-    minWidth: "300px",
+    padding: "14px 16px",
+    borderRadius: "14px",
+    border: "1px solid #cbd5e1",
+    fontSize: "16px",
+    minWidth: "340px",
   },
+
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "18px",
+    marginBottom: "24px",
+  },
+
+  statCard: {
+    background: "white",
+    padding: "22px",
+    borderRadius: "20px",
+    boxShadow: "0 8px 24px rgba(15, 42, 74, 0.08)",
+  },
+
+  statLabel: {
+    margin: 0,
+    color: "#64748b",
+    fontWeight: "700",
+  },
+
+  statNumber: {
+    fontSize: "38px",
+    margin: "8px 0 0",
+  },
+
   card: {
     background: "white",
-    padding: "24px",
-    borderRadius: "20px",
-    marginBottom: "24px",
-    boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+    padding: "26px",
+    borderRadius: "24px",
+    marginBottom: "20px",
+    boxShadow: "0 10px 30px rgba(15, 42, 74, 0.09)",
+    border: "1px solid #e5e7eb",
   },
+
   cardTop: {
     display: "flex",
     justifyContent: "space-between",
-    marginBottom: "20px",
     gap: "20px",
+    marginBottom: "24px",
   },
+
   facilityName: {
     margin: 0,
-    fontSize: "30px",
+    fontSize: "28px",
   },
+
   meta: {
-    color: "#666",
+    color: "#64748b",
+    marginTop: "6px",
+    fontSize: "16px",
   },
+
+  submissionId: {
+    color: "#94a3b8",
+    fontSize: "13px",
+    marginTop: "4px",
+  },
+
   uploadedBadge: {
     background: "#dcfce7",
     color: "#166534",
     padding: "10px 14px",
     borderRadius: "999px",
-    fontWeight: "bold",
+    fontWeight: "700",
     height: "fit-content",
   },
+
   missingBadge: {
     background: "#fee2e2",
     color: "#991b1b",
     padding: "10px 14px",
     borderRadius: "999px",
-    fontWeight: "bold",
+    fontWeight: "700",
     height: "fit-content",
   },
+
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: "20px",
+    background: "#f8fafc",
+    padding: "20px",
+    borderRadius: "18px",
     marginBottom: "24px",
   },
+
   documentsSection: {
     background: "#f8fafc",
     padding: "20px",
-    borderRadius: "16px",
+    borderRadius: "18px",
   },
+
+  sectionTitle: {
+    marginTop: 0,
+  },
+
+  noDocs: {
+    color: "#64748b",
+  },
+
   documentBox: {
     background: "white",
     border: "1px solid #e5e7eb",
-    borderRadius: "14px",
+    borderRadius: "16px",
     padding: "16px",
     marginBottom: "14px",
   },
+
+  documentHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    marginBottom: "12px",
+  },
+
+  documentName: {
+    margin: 0,
+    fontWeight: "700",
+    fontSize: "16px",
+  },
+
+  documentMeta: {
+    margin: "4px 0 0",
+    color: "#64748b",
+    fontSize: "14px",
+  },
+
+  pdfBadge: {
+    background: "#dbeafe",
+    color: "#1e40af",
+    padding: "6px 10px",
+    borderRadius: "999px",
+    fontWeight: "700",
+    height: "fit-content",
+    fontSize: "12px",
+  },
+
+  buttonRow: {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+
   documentLink: {
     display: "inline-block",
-    marginRight: "12px",
-    marginBottom: "12px",
     background: "#2563eb",
     color: "white",
     padding: "10px 14px",
@@ -323,6 +500,7 @@ const styles = {
     textDecoration: "none",
     fontWeight: "bold",
   },
+
   parseButton: {
     background: "#111827",
     color: "white",
@@ -332,12 +510,14 @@ const styles = {
     fontWeight: "bold",
     cursor: "pointer",
   },
+
   parseResult: {
     marginTop: "14px",
     padding: "14px",
     background: "#eef4ff",
     borderRadius: "12px",
   },
+
   preview: {
     whiteSpace: "pre-wrap",
     background: "#0f172a",
