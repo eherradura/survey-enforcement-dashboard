@@ -66,8 +66,6 @@ export default function Home() {
   }
 
   function getComments(answers) {
-    // Current known Jotform Comments field appears to be answer ID 10.
-    // This fallback also searches for any field named "comments".
     const directComment = getAnswer(answers, "10");
 
     if (
@@ -97,8 +95,6 @@ export default function Home() {
     const name = (file.name || "").toLowerCase().trim();
 
     if (name === `${submissionId}.pdf`.toLowerCase()) return true;
-
-    // Filters generic Jotform-generated submission PDFs like 6538150687635847857.pdf
     if (/^\d+\.pdf$/i.test(name)) return true;
 
     return false;
@@ -162,7 +158,7 @@ export default function Home() {
 
     if (missingItems.length > 0) {
       return {
-        label: `Documents Available — Missing: ${missingItems.join(", ")}`,
+        label: `Missing: ${missingItems.join(", ")}`,
         style: styles.warningBadge,
         missingItems,
       };
@@ -234,24 +230,22 @@ export default function Home() {
     return facilityMatches && yearMatches;
   });
 
-  const totalRelevantDocuments = filteredSubmissions.reduce((count, submission) => {
-    return count + getRelevantDocumentsForSubmission(submission.id).length;
-  }, 0);
-
   return (
     <main style={styles.page}>
-      <section style={styles.hero}>
-        <p style={styles.kicker}>Survey Intelligence</p>
-        <h1 style={styles.title}>Survey Enforcement Dashboard</h1>
-        <p style={styles.subtitle}>
-          Live survey activity from Jotform with matched regulatory documents and findings review.
-        </p>
+      <div style={styles.backgroundAccentOne}></div>
+      <div style={styles.backgroundAccentTwo}></div>
+      <div style={styles.backgroundGrid}></div>
+
+      <section style={styles.header}>
+        <div>
+          <h1 style={styles.title}>Survey Dashboard</h1>
+        </div>
       </section>
 
-      <section style={styles.filterSection}>
+      <section style={styles.controlPanel}>
         <div style={styles.filterGrid}>
           <div>
-            <label style={styles.label}>Select Facility</label>
+            <label style={styles.label}>Facility</label>
             <select
               value={selectedFacility}
               onChange={(e) => setSelectedFacility(e.target.value)}
@@ -266,7 +260,7 @@ export default function Home() {
           </div>
 
           <div>
-            <label style={styles.label}>Select Year</label>
+            <label style={styles.label}>Year</label>
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
@@ -280,22 +274,10 @@ export default function Home() {
             </select>
           </div>
         </div>
-      </section>
 
-      <section style={styles.statsGrid}>
-        <div style={styles.statCard}>
-          <p style={styles.statLabel}>Survey Records Shown</p>
-          <h2 style={styles.statNumber}>{filteredSubmissions.length}</h2>
-        </div>
-
-        <div style={styles.statCard}>
-          <p style={styles.statLabel}>Regulatory Documents Matched</p>
-          <h2 style={styles.statNumber}>{totalRelevantDocuments}</h2>
-        </div>
-
-        <div style={styles.statCard}>
-          <p style={styles.statLabel}>Submission Folders</p>
-          <h2 style={styles.statNumber}>{driveData.length}</h2>
+        <div style={styles.eventTile}>
+          <p style={styles.eventTileLabel}>Survey Events</p>
+          <h2 style={styles.eventTileNumber}>{filteredSubmissions.length}</h2>
         </div>
       </section>
 
@@ -321,45 +303,47 @@ export default function Home() {
               <span style={documentStatus.style}>{documentStatus.label}</span>
             </div>
 
-            <div style={styles.grid}>
-              <div>
-                <strong>Survey Entrance</strong>
-                <p>{getAnswer(answers, "5")}</p>
+            <div style={styles.detailsGrid}>
+              <div style={styles.detailItem}>
+                <span style={styles.detailLabel}>Survey Entrance</span>
+                <p style={styles.detailValue}>{getAnswer(answers, "5")}</p>
               </div>
 
-              <div>
-                <strong>Last Day of Survey</strong>
-                <p>{getAnswer(answers, "67")}</p>
+              <div style={styles.detailItem}>
+                <span style={styles.detailLabel}>Last Day of Survey</span>
+                <p style={styles.detailValue}>{getAnswer(answers, "67")}</p>
               </div>
 
-              <div>
-                <strong>DPNA Date</strong>
-                <p>{getAnswer(answers, "68")}</p>
+              <div style={styles.detailItem}>
+                <span style={styles.detailLabel}>DPNA Date</span>
+                <p style={styles.detailValue}>{getAnswer(answers, "68")}</p>
               </div>
 
-              <div>
-                <strong>Termination Date</strong>
-                <p>{getAnswer(answers, "69")}</p>
+              <div style={styles.detailItem}>
+                <span style={styles.detailLabel}>Termination Date</span>
+                <p style={styles.detailValue}>{getAnswer(answers, "69")}</p>
               </div>
 
-              <div>
-                <strong>Completion Date</strong>
-                <p>{getAnswer(answers, "70")}</p>
+              <div style={styles.detailItem}>
+                <span style={styles.detailLabel}>Completion Date</span>
+                <p style={styles.detailValue}>{getAnswer(answers, "70")}</p>
               </div>
 
-              <div>
-                <strong>Enforcement Cycle</strong>
-                <p>{getAnswer(answers, "71")}</p>
+              <div style={styles.detailItem}>
+                <span style={styles.detailLabel}>Enforcement Cycle</span>
+                <p style={styles.detailValue}>{getAnswer(answers, "71")}</p>
               </div>
-            </div>
 
-            <div style={styles.commentsBox}>
-              <strong>Comments</strong>
-              <p>{comments}</p>
+              <div style={styles.commentsItem}>
+                <span style={styles.detailLabel}>Comments</span>
+                <p style={styles.commentValue}>{comments}</p>
+              </div>
             </div>
 
             <div style={styles.documentsSection}>
-              <h3 style={styles.sectionTitle}>Documents</h3>
+              <div style={styles.sectionHeader}>
+                <h3 style={styles.sectionTitle}>Documents</h3>
+              </div>
 
               {documentStatus.missingItems.length > 0 && (
                 <div style={styles.missingDocumentBox}>
@@ -373,74 +357,81 @@ export default function Home() {
                   or related regulatory document has been matched to this survey event yet.
                 </p>
               ) : (
-                documents.map((file) => {
-                  const key = `${submission.id}-${file.fileId}`;
-                  const parsed = parsedDocs[key];
-                  const documentName = file.name || "Unnamed PDF";
+                <div style={styles.documentList}>
+                  {documents.map((file) => {
+                    const key = `${submission.id}-${file.fileId}`;
+                    const parsed = parsedDocs[key];
+                    const documentName = file.name || "Unnamed PDF";
 
-                  return (
-                    <div key={file.fileId} style={styles.documentBox}>
-                      <div style={styles.documentHeader}>
-                        <p style={styles.documentName}>{documentName}</p>
-                        <span style={styles.pdfBadge}>PDF</span>
-                      </div>
-
-                      <div style={styles.buttonRow}>
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={styles.documentLink}
-                        >
-                          View File
-                        </a>
-
-                        <button
-                          onClick={() => viewFindings(file.fileId, key)}
-                          style={styles.parseButton}
-                        >
-                          {loadingDoc === key ? "Reviewing..." : "View Findings"}
-                        </button>
-                      </div>
-
-                      {parsed && (
-                        <div style={styles.parseResult}>
-                          {parsed.success === false && (
-                            <p style={styles.errorText}>
-                              <strong>Findings Error:</strong>{" "}
-                              {parsed.error || "Unknown error"}
-                            </p>
-                          )}
-
-                          <p>
-                            <strong>Intake Number From PDF:</strong>{" "}
-                            {parsed.intakeNumberFromPdf || "Not found"}
-                          </p>
-
-                          {parsed.deficiencies?.length > 0 ? (
-                            <div style={styles.deficiencyList}>
-                              <strong>Deficiency Detail:</strong>
-                              <div style={styles.pillWrap}>
-                                {parsed.deficiencies.map((def, defIndex) => (
-                                  <div key={defIndex} style={styles.deficiencyPill}>
-                                    {def.ftag}
-                                    {def.scopeSeverity
-                                      ? ` - ${def.scopeSeverity}`
-                                      : " - Scope/Severity not found"}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <p>
-                              <strong>Deficiency:</strong> No deficiency
-                            </p>
-                          )}
+                    return (
+                      <div key={file.fileId} style={styles.documentBox}>
+                        <div style={styles.documentHeader}>
+                          <p style={styles.documentName}>{documentName}</p>
+                          <span style={styles.pdfBadge}>PDF</span>
                         </div>
-                      )}
-                    </div>
-                  );
-                })
+
+                        <div style={styles.buttonRow}>
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={styles.documentLink}
+                          >
+                            View File
+                          </a>
+
+                          <button
+                            onClick={() => viewFindings(file.fileId, key)}
+                            style={styles.parseButton}
+                          >
+                            {loadingDoc === key
+                              ? "Reviewing..."
+                              : "View Findings"}
+                          </button>
+                        </div>
+
+                        {parsed && (
+                          <div style={styles.parseResult}>
+                            {parsed.success === false && (
+                              <p style={styles.errorText}>
+                                <strong>Findings Error:</strong>{" "}
+                                {parsed.error || "Unknown error"}
+                              </p>
+                            )}
+
+                            <p style={styles.findingLine}>
+                              <strong>Intake Number From PDF:</strong>{" "}
+                              {parsed.intakeNumberFromPdf || "Not found"}
+                            </p>
+
+                            {parsed.deficiencies?.length > 0 ? (
+                              <div style={styles.deficiencyList}>
+                                <strong>Deficiency Detail:</strong>
+                                <div style={styles.pillWrap}>
+                                  {parsed.deficiencies.map((def, defIndex) => (
+                                    <div
+                                      key={defIndex}
+                                      style={styles.deficiencyPill}
+                                    >
+                                      {def.ftag}
+                                      {def.scopeSeverity
+                                        ? ` - ${def.scopeSeverity}`
+                                        : " - Scope/Severity not found"}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <p style={styles.findingLine}>
+                                <strong>Deficiency:</strong> No deficiency
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </section>
@@ -452,114 +443,157 @@ export default function Home() {
 
 const styles = {
   page: {
+    position: "relative",
     minHeight: "100vh",
-    background: "linear-gradient(135deg, #eef4ff 0%, #f8fafc 45%, #ffffff 100%)",
-    padding: "40px",
-    fontFamily: "Arial, sans-serif",
-    color: "#102033",
+    overflow: "hidden",
+    background: "#f4f7fb",
+    padding: "34px",
+    fontFamily:
+      "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
+    color: "#0f172a",
   },
 
-  hero: {
-    background: "linear-gradient(135deg, #0f2a4a, #174f7a)",
+  backgroundAccentOne: {
+    position: "fixed",
+    width: "520px",
+    height: "520px",
+    borderRadius: "999px",
+    background: "rgba(37, 99, 235, 0.10)",
+    top: "-220px",
+    right: "-160px",
+    filter: "blur(10px)",
+    pointerEvents: "none",
+  },
+
+  backgroundAccentTwo: {
+    position: "fixed",
+    width: "460px",
+    height: "460px",
+    borderRadius: "999px",
+    background: "rgba(14, 165, 233, 0.08)",
+    bottom: "-220px",
+    left: "-180px",
+    filter: "blur(12px)",
+    pointerEvents: "none",
+  },
+
+  backgroundGrid: {
+    position: "fixed",
+    inset: 0,
+    backgroundImage:
+      "linear-gradient(rgba(15, 23, 42, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15, 23, 42, 0.035) 1px, transparent 1px)",
+    backgroundSize: "48px 48px",
+    maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.5), transparent 70%)",
+    pointerEvents: "none",
+  },
+
+  header: {
+    position: "relative",
+    background:
+      "linear-gradient(135deg, rgba(15, 42, 74, 0.98), rgba(30, 64, 115, 0.95))",
     color: "white",
-    padding: "36px",
-    borderRadius: "28px",
-    marginBottom: "24px",
-    boxShadow: "0 18px 40px rgba(15, 42, 74, 0.25)",
-  },
-
-  kicker: {
-    textTransform: "uppercase",
-    letterSpacing: "2px",
-    fontSize: "12px",
-    opacity: 0.8,
-    margin: 0,
+    padding: "42px",
+    borderRadius: "30px",
+    marginBottom: "22px",
+    boxShadow: "0 22px 55px rgba(15, 42, 74, 0.24)",
+    border: "1px solid rgba(255,255,255,0.16)",
   },
 
   title: {
-    fontSize: "44px",
-    margin: "8px 0",
+    fontSize: "54px",
+    lineHeight: 1,
+    letterSpacing: "-1.8px",
+    margin: 0,
+    fontWeight: "800",
   },
 
-  subtitle: {
-    maxWidth: "760px",
-    fontSize: "17px",
-    lineHeight: 1.5,
-    opacity: 0.9,
-  },
-
-  filterSection: {
-    background: "white",
-    padding: "22px",
-    borderRadius: "20px",
-    marginBottom: "20px",
-    boxShadow: "0 8px 24px rgba(15, 42, 74, 0.08)",
+  controlPanel: {
+    position: "relative",
+    display: "grid",
+    gridTemplateColumns: "1fr 280px",
+    gap: "18px",
+    marginBottom: "22px",
   },
 
   filterGrid: {
     display: "flex",
-    gap: "20px",
+    gap: "16px",
     flexWrap: "wrap",
+    background: "rgba(255,255,255,0.82)",
+    backdropFilter: "blur(14px)",
+    border: "1px solid rgba(226, 232, 240, 0.9)",
+    padding: "20px",
+    borderRadius: "24px",
+    boxShadow: "0 14px 32px rgba(15, 23, 42, 0.08)",
   },
 
   label: {
     display: "block",
-    fontWeight: "700",
+    fontWeight: "800",
+    fontSize: "12px",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "#64748b",
     marginBottom: "8px",
   },
 
   select: {
-    padding: "14px 16px",
+    padding: "13px 14px",
     borderRadius: "14px",
     border: "1px solid #cbd5e1",
-    fontSize: "16px",
-    minWidth: "260px",
-  },
-
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: "18px",
-    marginBottom: "24px",
-  },
-
-  statCard: {
     background: "white",
-    padding: "22px",
-    borderRadius: "20px",
-    boxShadow: "0 8px 24px rgba(15, 42, 74, 0.08)",
+    fontSize: "15px",
+    minWidth: "260px",
+    outline: "none",
   },
 
-  statLabel: {
+  eventTile: {
+    background: "rgba(255,255,255,0.88)",
+    backdropFilter: "blur(14px)",
+    border: "1px solid rgba(226, 232, 240, 0.95)",
+    padding: "22px",
+    borderRadius: "24px",
+    boxShadow: "0 14px 32px rgba(15, 23, 42, 0.08)",
+  },
+
+  eventTileLabel: {
     margin: 0,
     color: "#64748b",
-    fontWeight: "700",
+    fontWeight: "800",
+    fontSize: "13px",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
   },
 
-  statNumber: {
-    fontSize: "38px",
-    margin: "8px 0 0",
+  eventTileNumber: {
+    fontSize: "46px",
+    margin: "6px 0 0",
+    letterSpacing: "-1px",
   },
 
   card: {
-    background: "white",
+    position: "relative",
+    background: "rgba(255,255,255,0.90)",
+    backdropFilter: "blur(12px)",
     padding: "26px",
-    borderRadius: "24px",
-    marginBottom: "20px",
-    boxShadow: "0 10px 30px rgba(15, 42, 74, 0.09)",
-    border: "1px solid #e5e7eb",
+    borderRadius: "28px",
+    marginBottom: "22px",
+    boxShadow: "0 16px 38px rgba(15, 23, 42, 0.08)",
+    border: "1px solid rgba(226, 232, 240, 0.95)",
   },
 
   cardTop: {
     display: "flex",
     justifyContent: "space-between",
     gap: "20px",
-    marginBottom: "24px",
+    marginBottom: "22px",
+    alignItems: "flex-start",
   },
 
   facilityName: {
     margin: 0,
-    fontSize: "28px",
+    fontSize: "30px",
+    letterSpacing: "-0.5px",
   },
 
   meta: {
@@ -579,8 +613,9 @@ const styles = {
     color: "#166534",
     padding: "10px 14px",
     borderRadius: "999px",
-    fontWeight: "700",
+    fontWeight: "800",
     height: "fit-content",
+    whiteSpace: "nowrap",
   },
 
   warningBadge: {
@@ -588,8 +623,9 @@ const styles = {
     color: "#92400e",
     padding: "10px 14px",
     borderRadius: "999px",
-    fontWeight: "700",
+    fontWeight: "800",
     height: "fit-content",
+    whiteSpace: "nowrap",
   },
 
   missingBadge: {
@@ -597,57 +633,100 @@ const styles = {
     color: "#991b1b",
     padding: "10px 14px",
     borderRadius: "999px",
-    fontWeight: "700",
+    fontWeight: "800",
     height: "fit-content",
+    whiteSpace: "nowrap",
   },
 
-  grid: {
+  detailsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: "20px",
-    background: "#f8fafc",
-    padding: "20px",
-    borderRadius: "18px",
-    marginBottom: "18px",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "1px",
+    background: "#e2e8f0",
+    borderRadius: "20px",
+    overflow: "hidden",
+    marginBottom: "22px",
+    border: "1px solid #e2e8f0",
   },
 
-  commentsBox: {
+  detailItem: {
     background: "#f8fafc",
-    padding: "18px 20px",
-    borderRadius: "18px",
-    marginBottom: "24px",
-    border: "1px solid #e5e7eb",
+    padding: "18px",
+    minHeight: "86px",
+  },
+
+  commentsItem: {
+    gridColumn: "1 / -1",
+    background: "#f8fafc",
+    padding: "18px",
+  },
+
+  detailLabel: {
+    display: "block",
+    fontSize: "12px",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    color: "#64748b",
+    fontWeight: "800",
+    marginBottom: "8px",
+  },
+
+  detailValue: {
+    margin: 0,
+    fontSize: "16px",
+    color: "#0f172a",
+  },
+
+  commentValue: {
+    margin: 0,
+    fontSize: "15px",
+    color: "#334155",
+    lineHeight: 1.55,
   },
 
   documentsSection: {
     background: "#f8fafc",
     padding: "20px",
-    borderRadius: "18px",
+    borderRadius: "22px",
+    border: "1px solid #e2e8f0",
+  },
+
+  sectionHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: "12px",
   },
 
   sectionTitle: {
-    marginTop: 0,
+    margin: 0,
+    fontSize: "21px",
   },
 
   noDocs: {
     color: "#64748b",
+    lineHeight: 1.5,
   },
 
   missingDocumentBox: {
     background: "#fff7ed",
     color: "#9a3412",
     border: "1px solid #fed7aa",
-    borderRadius: "14px",
+    borderRadius: "16px",
     padding: "14px",
     marginBottom: "14px",
+  },
+
+  documentList: {
+    display: "grid",
+    gap: "14px",
   },
 
   documentBox: {
     background: "white",
     border: "1px solid #e5e7eb",
-    borderRadius: "16px",
+    borderRadius: "18px",
     padding: "16px",
-    marginBottom: "14px",
   },
 
   documentHeader: {
@@ -659,7 +738,7 @@ const styles = {
 
   documentName: {
     margin: 0,
-    fontWeight: "700",
+    fontWeight: "800",
     fontSize: "16px",
   },
 
@@ -668,7 +747,7 @@ const styles = {
     color: "#1e40af",
     padding: "6px 10px",
     borderRadius: "999px",
-    fontWeight: "700",
+    fontWeight: "800",
     height: "fit-content",
     fontSize: "12px",
   },
@@ -684,18 +763,18 @@ const styles = {
     background: "#2563eb",
     color: "white",
     padding: "10px 14px",
-    borderRadius: "10px",
+    borderRadius: "12px",
     textDecoration: "none",
-    fontWeight: "bold",
+    fontWeight: "800",
   },
 
   parseButton: {
     background: "#111827",
     color: "white",
     padding: "10px 14px",
-    borderRadius: "10px",
+    borderRadius: "12px",
     border: "none",
-    fontWeight: "bold",
+    fontWeight: "800",
     cursor: "pointer",
   },
 
@@ -703,11 +782,16 @@ const styles = {
     marginTop: "14px",
     padding: "14px",
     background: "#eef4ff",
-    borderRadius: "12px",
+    borderRadius: "14px",
+    border: "1px solid #dbeafe",
   },
 
   errorText: {
     color: "#991b1b",
+  },
+
+  findingLine: {
+    margin: "0 0 10px",
   },
 
   deficiencyList: {
@@ -727,6 +811,6 @@ const styles = {
     color: "#991b1b",
     padding: "8px 12px",
     borderRadius: "999px",
-    fontWeight: "700",
+    fontWeight: "800",
   },
 };
