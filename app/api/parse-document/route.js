@@ -4,7 +4,7 @@ function normalizeText(text) {
   return (text || "")
     .replace(/\r/g, "\n")
     .replace(/[ \t]+/g, " ")
-    .replace(/\n{2,}/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -61,22 +61,13 @@ function extractIntakeNumber(fileName, text) {
 
 function extractDeficiencies(text) {
   const normalized = normalizeText(text);
+
   const lines = normalized
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const deficiencies = [];
-  const seenByFtag = new Map();
-
-  /*
-    CMS-2567 usually appears like:
-    F0689
-    SS = E
-
-    Sometimes OCR puts the SS on the same line, sometimes the next line.
-    This checks the F-tag line plus nearby lines.
-  */
+  const deficienciesByFtag = new Map();
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -90,7 +81,7 @@ function extractDeficiencies(text) {
         continue;
       }
 
-      const nearbyText = lines.slice(i, i + 8).join(" ");
+      const nearbyText = lines.slice(i, i + 12).join(" ");
 
       const ssMatch =
         nearbyText.match(/\bSS\s*[:=]\s*([A-L])\b/i) ||
@@ -99,18 +90,17 @@ function extractDeficiencies(text) {
 
       const scopeSeverity = ssMatch ? ssMatch[1].toUpperCase() : null;
 
-      const existing = seenByFtag.get(ftag);
+      if (!scopeSeverity) {
+        continue;
+      }
 
-      if (!existing) {
-        seenByFtag.set(ftag, {
-          ftag,
-          scopeSeverity,
-        });
-      } else if (
-        scopeSeverity &&
+      const existing = deficienciesByFtag.get(ftag);
+
+      if (
+        !existing ||
         severityRank(scopeSeverity) > severityRank(existing.scopeSeverity)
       ) {
-        seenByFtag.set(ftag, {
+        deficienciesByFtag.set(ftag, {
           ftag,
           scopeSeverity,
         });
@@ -118,50 +108,34 @@ function extractDeficiencies(text) {
     }
   }
 
-  /*
-    Backup scan for OCR that flattened everything into one long line.
-  */
-
   const flattened = normalized.replace(/\n/g, " ");
 
-  const sectionRegex =
-    /\bF\s*0?(\d{3})\b([\s\S]{0,500}?)(?=\bF\s*0?\d{3}\b|$)/gi;
+  const compactPattern =
+    /\bF\s*0?(\d{3})\b.{0,160}?\b(?:SS|S\/S)\s*[:=]\s*([A-L])\b/gi;
 
-  for (const match of flattened.matchAll(sectionRegex)) {
+  for (const match of flattened.matchAll(compactPattern)) {
     const ftag = normalizeFtag(match[1]);
 
     if (ftag === "F000") {
       continue;
     }
 
-    const sectionText = match[2] || "";
+    const scopeSeverity = match[2].toUpperCase();
 
-    const ssMatch =
-      sectionText.match(/\bSS\s*[:=]\s*([A-L])\b/i) ||
-      sectionText.match(/\bS\/S\s*[:=]\s*([A-L])\b/i) ||
-      sectionText.match(/\bScope\s*\/?\s*Severity\s*[:=]\s*([A-L])\b/i);
+    const existing = deficienciesByFtag.get(ftag);
 
-    const scopeSeverity = ssMatch ? ssMatch[1].toUpperCase() : null;
-
-    const existing = seenByFtag.get(ftag);
-
-    if (!existing) {
-      seenByFtag.set(ftag, {
-        ftag,
-        scopeSeverity,
-      });
-    } else if (
-      scopeSeverity &&
+    if (
+      !existing ||
       severityRank(scopeSeverity) > severityRank(existing.scopeSeverity)
     ) {
-      seenByFtag.set(ftag, {
+      deficienciesByFtag.set(ftag, {
         ftag,
         scopeSeverity,
       });
     }
   }
 
-  deficiencies.push(...seenByFtag.values());
+  const deficiencies = [...deficienciesByFtag.values()];
 
   deficiencies.sort((a, b) => {
     const severityDifference =
@@ -180,11 +154,28 @@ function extractDeficiencies(text) {
   return deficiencies;
 }
 
+function extractSurveyDates(text) {
+  const cleanText = text.replace(/\s+/g, " ").trim();
+
+  const dateSurveyCompleted =
+    cleanText.match(/DATE SURVEY COMPLETED\s*(\d{1,2}\/\d{1,2}\/\d{4})/i) ||
+    cleanText.match(/\(X3\)\s*DATE SURVEY COMPLETED\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+
+  const surveyRange =
+    cleanText.match(/survey conducted on\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*to\s*(\d{1,2}\/\d{1,2}\/\d{4})/i) ||
+    cleanText.match(/conducted on\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*to\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+
+  return {
+    surveyCompletedDate: dateSurveyCompleted ? dateSurveyCompleted[1] : null,
+    surveyStartDate: surveyRange ? surveyRange[1] : null,
+    surveyEndDate: surveyRange ? surveyRange[2] : null,
+  };
+}
+
 export async function POST(request) {
   try {
     const { fileId } = await request.json();
     const driveConnectorUrl = process.env.DRIVE_CONNECTOR_URL;
-    const apiKey = process.env.OCR_SPACE_API_KEY;
 
     if (!fileId) {
       return Response.json({
@@ -200,79 +191,40 @@ export async function POST(request) {
       });
     }
 
-    if (!apiKey) {
-      return Response.json({
-        success: false,
-        error: "Missing OCR_SPACE_API_KEY",
-      });
-    }
-
-    const fileResponse = await fetch(
-      `${driveConnectorUrl}?action=file&fileId=${encodeURIComponent(fileId)}`,
+    const ocrResponse = await fetch(
+      `${driveConnectorUrl}?action=ocrText&fileId=${encodeURIComponent(fileId)}`,
       { cache: "no-store" }
     );
 
-    const fileData = await fileResponse.json();
+    const ocrData = await ocrResponse.json();
 
-    if (!fileData.success || !fileData.base64) {
+    if (!ocrData.success) {
       return Response.json({
         success: false,
-        error: "Could not retrieve file from Google Drive connector",
-        fileData,
+        error: "Google Drive OCR failed",
+        ocrData,
       });
     }
 
-    const fileBuffer = Buffer.from(fileData.base64, "base64");
-
-    const pdfBlob = new Blob([fileBuffer], {
-      type: fileData.mimeType || "application/pdf",
-    });
-
-    const formData = new FormData();
-    formData.append("apikey", apiKey);
-    formData.append("language", "eng");
-    formData.append("isOverlayRequired", "false");
-    formData.append("detectOrientation", "true");
-    formData.append("scale", "true");
-    formData.append("isTable", "true");
-    formData.append("filetype", "PDF");
-    formData.append("OCREngine", "2");
-    formData.append("file", pdfBlob, fileData.fileName || "survey.pdf");
-
-    const ocrResponse = await fetch("https://api.ocr.space/parse/image", {
-      method: "POST",
-      body: formData,
-    });
-
-    const ocrData = await ocrResponse.json();
-
-    const parsedResults = ocrData?.ParsedResults || [];
-
-    const rawText = parsedResults
-      .map((result) => result.ParsedText || "")
-      .join("\n\n--- PAGE BREAK ---\n\n");
-
-    const text = normalizeText(rawText);
-
-    const intakeNumberFromPdf = extractIntakeNumber(fileData.fileName, text);
+    const text = normalizeText(ocrData.text || "");
     const deficiencies = extractDeficiencies(text);
+    const intakeNumberFromPdf = extractIntakeNumber(ocrData.fileName, text);
+    const dates = extractSurveyDates(text);
 
     return Response.json({
       success: true,
-      fileName: fileData.fileName,
+      fileName: ocrData.fileName,
       intakeNumberFromPdf,
       deficienciesFound: deficiencies.length > 0,
       deficiencies,
-      ftags: deficiencies.map((d) =>
-        d.scopeSeverity ? `${d.ftag} - ${d.scopeSeverity}` : d.ftag
-      ),
-      scopeSeverity: deficiencies
-        .map((d) => d.scopeSeverity)
-        .filter(Boolean),
-      parsedResultCount: parsedResults.length,
+      ftags: deficiencies.map((d) => `${d.ftag} - ${d.scopeSeverity}`),
+      scopeSeverity: deficiencies.map((d) => d.scopeSeverity),
+      surveyCompletedDate: dates.surveyCompletedDate,
+      surveyStartDate: dates.surveyStartDate,
+      surveyEndDate: dates.surveyEndDate,
       textLength: text.length,
-      textPreview: text.slice(0, 12000),
-      rawOcrData: ocrData,
+      textPreview: text.slice(0, 20000),
+      ocrSource: "Google Drive OCR",
     });
   } catch (error) {
     return Response.json({
