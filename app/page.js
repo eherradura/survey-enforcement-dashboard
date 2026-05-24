@@ -230,6 +230,41 @@ export default function Home() {
     return facilityMatches && yearMatches;
   });
 
+  function getParsedFindingsForSubmission(submissionId) {
+    return Object.entries(parsedDocs)
+      .filter(([key]) => key.startsWith(`${submissionId}-`))
+      .map(([, value]) => value)
+      .filter((parsed) => parsed && parsed.success !== false);
+  }
+
+  const eventsWithFindings = filteredSubmissions.filter((submission) => {
+    const parsedFindings = getParsedFindingsForSubmission(submission.id);
+
+    return parsedFindings.some(
+      (parsed) => parsed.deficiencies && parsed.deficiencies.length > 0
+    );
+  }).length;
+
+  const severitySummary = filteredSubmissions.reduce((summary, submission) => {
+    const parsedFindings = getParsedFindingsForSubmission(submission.id);
+
+    parsedFindings.forEach((parsed) => {
+      (parsed.deficiencies || []).forEach((deficiency) => {
+        const severity = deficiency.scopeSeverity || "Unknown";
+        summary[severity] = (summary[severity] || 0) + 1;
+      });
+    });
+
+    return summary;
+  }, {});
+
+  const severityOrder = ["L", "K", "J", "I", "H", "G", "F", "E", "D", "C", "B", "A", "Unknown"];
+
+  const severitySummaryText = severityOrder
+    .filter((severity) => severitySummary[severity])
+    .map((severity) => `${severity}: ${severitySummary[severity]}`)
+    .join(" • ");
+
   return (
     <main style={styles.page}>
       <div style={styles.backgroundAccentOne}></div>
@@ -237,9 +272,7 @@ export default function Home() {
       <div style={styles.backgroundGrid}></div>
 
       <section style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Survey Dashboard</h1>
-        </div>
+        <h1 style={styles.title}>Survey Dashboard</h1>
       </section>
 
       <section style={styles.controlPanel}>
@@ -275,9 +308,23 @@ export default function Home() {
           </div>
         </div>
 
-        <div style={styles.eventTile}>
-          <p style={styles.eventTileLabel}>Survey Events</p>
-          <h2 style={styles.eventTileNumber}>{filteredSubmissions.length}</h2>
+        <div style={styles.tileGrid}>
+          <div style={styles.eventTile}>
+            <p style={styles.eventTileLabel}>Survey Events</p>
+            <h2 style={styles.eventTileNumber}>{filteredSubmissions.length}</h2>
+          </div>
+
+          <div style={styles.eventTile}>
+            <p style={styles.eventTileLabel}>Events With Findings</p>
+            <h2 style={styles.eventTileNumber}>{eventsWithFindings}</h2>
+          </div>
+
+          <div style={styles.eventTileWide}>
+            <p style={styles.eventTileLabel}>Severity Summary</p>
+            <h2 style={styles.severityText}>
+              {severitySummaryText || "No findings reviewed yet"}
+            </h2>
+          </div>
         </div>
       </section>
 
@@ -510,7 +557,7 @@ const styles = {
   controlPanel: {
     position: "relative",
     display: "grid",
-    gridTemplateColumns: "1fr 280px",
+    gridTemplateColumns: "1fr",
     gap: "18px",
     marginBottom: "22px",
   },
@@ -547,7 +594,22 @@ const styles = {
     outline: "none",
   },
 
+  tileGrid: {
+    display: "grid",
+    gridTemplateColumns: "220px 260px 1fr",
+    gap: "16px",
+  },
+
   eventTile: {
+    background: "rgba(255,255,255,0.88)",
+    backdropFilter: "blur(14px)",
+    border: "1px solid rgba(226, 232, 240, 0.95)",
+    padding: "22px",
+    borderRadius: "24px",
+    boxShadow: "0 14px 32px rgba(15, 23, 42, 0.08)",
+  },
+
+  eventTileWide: {
     background: "rgba(255,255,255,0.88)",
     backdropFilter: "blur(14px)",
     border: "1px solid rgba(226, 232, 240, 0.95)",
@@ -569,6 +631,12 @@ const styles = {
     fontSize: "46px",
     margin: "6px 0 0",
     letterSpacing: "-1px",
+  },
+
+  severityText: {
+    fontSize: "28px",
+    margin: "12px 0 0",
+    letterSpacing: "-0.5px",
   },
 
   card: {
