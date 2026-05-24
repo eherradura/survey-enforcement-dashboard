@@ -6,6 +6,7 @@ export default function Home() {
   const [submissions, setSubmissions] = useState([]);
   const [driveData, setDriveData] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState("All Facilities");
+  const [selectedYear, setSelectedYear] = useState("All Years");
   const [parsedDocs, setParsedDocs] = useState({});
   const [loadingDoc, setLoadingDoc] = useState(null);
 
@@ -43,6 +44,45 @@ export default function Home() {
     }
 
     return field.answer || "No information available";
+  }
+
+  function getYearFromSubmission(submission) {
+    const answers = submission.answers;
+
+    const possibleDates = [
+      getAnswer(answers, "5"),
+      getAnswer(answers, "67"),
+      getAnswer(answers, "68"),
+      getAnswer(answers, "69"),
+      getAnswer(answers, "70"),
+    ];
+
+    for (const value of possibleDates) {
+      const match = String(value || "").match(/\b(20\d{2})\b/);
+      if (match) return match[1];
+    }
+
+    return "Unknown Year";
+  }
+
+  function getComments(answers) {
+    // Current known Jotform Comments field appears to be answer ID 10.
+    // This fallback also searches for any field named "comments".
+    const directComment = getAnswer(answers, "10");
+
+    if (
+      directComment &&
+      directComment !== "No information available" &&
+      String(directComment).trim() !== ""
+    ) {
+      return directComment;
+    }
+
+    const commentField = Object.values(answers || {}).find((field) => {
+      return String(field?.name || "").toLowerCase().includes("comment");
+    });
+
+    return commentField?.answer || "No comments entered";
   }
 
   function getAllDocumentsForSubmission(submissionId) {
@@ -135,7 +175,7 @@ export default function Home() {
     };
   }
 
-  async function parsePdf(fileId, key) {
+  async function viewFindings(fileId, key) {
     setLoadingDoc(key);
 
     try {
@@ -174,10 +214,25 @@ export default function Home() {
     return ["All Facilities", ...Array.from(new Set(names)).sort()];
   }, [submissions]);
 
-  const filteredSubmissions =
-    selectedFacility === "All Facilities"
-      ? submissions
-      : submissions.filter((s) => s.answers?.["3"]?.answer === selectedFacility);
+  const years = useMemo(() => {
+    const extractedYears = submissions
+      .map((submission) => getYearFromSubmission(submission))
+      .filter(Boolean);
+
+    return ["All Years", ...Array.from(new Set(extractedYears)).sort().reverse()];
+  }, [submissions]);
+
+  const filteredSubmissions = submissions.filter((submission) => {
+    const facilityMatches =
+      selectedFacility === "All Facilities" ||
+      submission.answers?.["3"]?.answer === selectedFacility;
+
+    const yearMatches =
+      selectedYear === "All Years" ||
+      getYearFromSubmission(submission) === selectedYear;
+
+    return facilityMatches && yearMatches;
+  });
 
   const totalRelevantDocuments = filteredSubmissions.reduce((count, submission) => {
     return count + getRelevantDocumentsForSubmission(submission.id).length;
@@ -189,24 +244,41 @@ export default function Home() {
         <p style={styles.kicker}>Survey Intelligence</p>
         <h1 style={styles.title}>Survey Enforcement Dashboard</h1>
         <p style={styles.subtitle}>
-          Live survey activity from Jotform with matched regulatory documents and parsing.
+          Live survey activity from Jotform with matched regulatory documents and findings review.
         </p>
       </section>
 
       <section style={styles.filterSection}>
-        <div>
-          <label style={styles.label}>Select Facility</label>
-          <select
-            value={selectedFacility}
-            onChange={(e) => setSelectedFacility(e.target.value)}
-            style={styles.select}
-          >
-            {facilities.map((facility) => (
-              <option key={facility} value={facility}>
-                {facility}
-              </option>
-            ))}
-          </select>
+        <div style={styles.filterGrid}>
+          <div>
+            <label style={styles.label}>Select Facility</label>
+            <select
+              value={selectedFacility}
+              onChange={(e) => setSelectedFacility(e.target.value)}
+              style={styles.select}
+            >
+              {facilities.map((facility) => (
+                <option key={facility} value={facility}>
+                  {facility}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={styles.label}>Select Year</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              style={styles.select}
+            >
+              {years.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </section>
 
@@ -231,6 +303,7 @@ export default function Home() {
         const answers = submission.answers;
         const documents = getRelevantDocumentsForSubmission(submission.id);
         const documentStatus = getDocumentStatus(documents);
+        const comments = getComments(answers);
 
         return (
           <section key={submission.id} style={styles.card}>
@@ -280,6 +353,11 @@ export default function Home() {
               </div>
             </div>
 
+            <div style={styles.commentsBox}>
+              <strong>Comments</strong>
+              <p>{comments}</p>
+            </div>
+
             <div style={styles.documentsSection}>
               <h3 style={styles.sectionTitle}>Documents</h3>
 
@@ -318,10 +396,10 @@ export default function Home() {
                         </a>
 
                         <button
-                          onClick={() => parsePdf(file.fileId, key)}
+                          onClick={() => viewFindings(file.fileId, key)}
                           style={styles.parseButton}
                         >
-                          {loadingDoc === key ? "Parsing..." : "Parse PDF"}
+                          {loadingDoc === key ? "Reviewing..." : "View Findings"}
                         </button>
                       </div>
 
@@ -329,7 +407,7 @@ export default function Home() {
                         <div style={styles.parseResult}>
                           {parsed.success === false && (
                             <p style={styles.errorText}>
-                              <strong>Parser Error:</strong>{" "}
+                              <strong>Findings Error:</strong>{" "}
                               {parsed.error || "Unknown error"}
                             </p>
                           )}
@@ -418,6 +496,12 @@ const styles = {
     boxShadow: "0 8px 24px rgba(15, 42, 74, 0.08)",
   },
 
+  filterGrid: {
+    display: "flex",
+    gap: "20px",
+    flexWrap: "wrap",
+  },
+
   label: {
     display: "block",
     fontWeight: "700",
@@ -429,7 +513,7 @@ const styles = {
     borderRadius: "14px",
     border: "1px solid #cbd5e1",
     fontSize: "16px",
-    minWidth: "340px",
+    minWidth: "260px",
   },
 
   statsGrid: {
@@ -524,7 +608,15 @@ const styles = {
     background: "#f8fafc",
     padding: "20px",
     borderRadius: "18px",
+    marginBottom: "18px",
+  },
+
+  commentsBox: {
+    background: "#f8fafc",
+    padding: "18px 20px",
+    borderRadius: "18px",
     marginBottom: "24px",
+    border: "1px solid #e5e7eb",
   },
 
   documentsSection: {
