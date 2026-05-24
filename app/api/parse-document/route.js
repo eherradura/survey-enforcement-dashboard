@@ -81,7 +81,7 @@ function extractDeficiencies(text) {
         continue;
       }
 
-      const nearbyText = lines.slice(i, i + 12).join(" ");
+      const nearbyText = lines.slice(i, i + 14).join(" ");
 
       const ssMatch =
         nearbyText.match(/\bSS\s*[:=]\s*([A-L])\b/i) ||
@@ -111,7 +111,7 @@ function extractDeficiencies(text) {
   const flattened = normalized.replace(/\n/g, " ");
 
   const compactPattern =
-    /\bF\s*0?(\d{3})\b.{0,160}?\b(?:SS|S\/S)\s*[:=]\s*([A-L])\b/gi;
+    /\bF\s*0?(\d{3})\b.{0,180}?\b(?:SS|S\/S)\s*[:=]\s*([A-L])\b/gi;
 
   for (const match of flattened.matchAll(compactPattern)) {
     const ftag = normalizeFtag(match[1]);
@@ -159,11 +159,17 @@ function extractSurveyDates(text) {
 
   const dateSurveyCompleted =
     cleanText.match(/DATE SURVEY COMPLETED\s*(\d{1,2}\/\d{1,2}\/\d{4})/i) ||
-    cleanText.match(/\(X3\)\s*DATE SURVEY COMPLETED\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+    cleanText.match(
+      /\(X3\)\s*DATE SURVEY COMPLETED\s*(\d{1,2}\/\d{1,2}\/\d{4})/i
+    );
 
   const surveyRange =
-    cleanText.match(/survey conducted on\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*to\s*(\d{1,2}\/\d{1,2}\/\d{4})/i) ||
-    cleanText.match(/conducted on\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*to\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+    cleanText.match(
+      /survey conducted on\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*to\s*(\d{1,2}\/\d{1,2}\/\d{4})/i
+    ) ||
+    cleanText.match(
+      /conducted on\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*to\s*(\d{1,2}\/\d{1,2}\/\d{4})/i
+    );
 
   return {
     surveyCompletedDate: dateSurveyCompleted ? dateSurveyCompleted[1] : null,
@@ -172,9 +178,87 @@ function extractSurveyDates(text) {
   };
 }
 
+function buildSeveritySummary(deficiencies) {
+  const summary = {};
+
+  deficiencies.forEach((item) => {
+    const severity = item.scopeSeverity || "Unknown";
+    summary[severity] = (summary[severity] || 0) + 1;
+  });
+
+  const severityOrder = [
+    "L",
+    "K",
+    "J",
+    "I",
+    "H",
+    "G",
+    "F",
+    "E",
+    "D",
+    "C",
+    "B",
+    "A",
+    "Unknown",
+  ];
+
+  return severityOrder
+    .filter((severity) => summary[severity])
+    .map((severity) => `${severity}: ${summary[severity]}`)
+    .join(" • ");
+}
+
+async function saveAnalysisToSheet({
+  driveConnectorUrl,
+  submissionId,
+  fileId,
+  fileName,
+  facility,
+  surveyType,
+  intakeNumberFromPdf,
+  deficiencies,
+  parsedResult,
+}) {
+  const saveResponse = await fetch(driveConnectorUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8",
+    },
+    body: JSON.stringify({
+      action: "saveAnalysis",
+      submissionId,
+      fileId,
+      fileName,
+      facility,
+      surveyType,
+      intakeNumberFromPdf,
+      deficiencies,
+      rawJson: parsedResult,
+    }),
+  });
+
+  const saveText = await saveResponse.text();
+
+  try {
+    return JSON.parse(saveText);
+  } catch {
+    return {
+      success: false,
+      error: "Could not parse save response",
+      rawResponse: saveText.slice(0, 1000),
+    };
+  }
+}
+
 export async function POST(request) {
   try {
-    const { fileId } = await request.json();
+    const {
+      fileId,
+      submissionId,
+      facility,
+      surveyType,
+    } = await request.json();
+
     const driveConnectorUrl = process.env.DRIVE_CONNECTOR_URL;
 
     if (!fileId) {
@@ -210,21 +294,45 @@ export async function POST(request) {
     const deficiencies = extractDeficiencies(text);
     const intakeNumberFromPdf = extractIntakeNumber(ocrData.fileName, text);
     const dates = extractSurveyDates(text);
+    const severitySummary = buildSeveritySummary(deficiencies);
 
-    return Response.json({
+    const parsedResult = {
       success: true,
       fileName: ocrData.fileName,
+      fileId,
+      submissionId: submissionId || "",
+      facility: facility || "",
+      surveyType: surveyType || "",
       intakeNumberFromPdf,
       deficienciesFound: deficiencies.length > 0,
       deficiencies,
       ftags: deficiencies.map((d) => `${d.ftag} - ${d.scopeSeverity}`),
       scopeSeverity: deficiencies.map((d) => d.scopeSeverity),
+      severitySummary,
       surveyCompletedDate: dates.surveyCompletedDate,
       surveyStartDate: dates.surveyStartDate,
       surveyEndDate: dates.surveyEndDate,
       textLength: text.length,
-      textPreview: text.slice(0, 20000),
       ocrSource: "Google Drive OCR",
+      savedAt: new Date().toISOString(),
+    };
+
+    const saveResult = await saveAnalysisToSheet({
+      driveConnectorUrl,
+      submissionId: submissionId || "",
+      fileId,
+      fileName: ocrData.fileName || "",
+      facility: facility || "",
+      surveyType: surveyType || "",
+      intakeNumberFromPdf,
+      deficiencies,
+      parsedResult,
+    });
+
+    return Response.json({
+      ...parsedResult,
+      savedToSheet: saveResult?.success === true,
+      saveResult,
     });
   } catch (error) {
     return Response.json({
