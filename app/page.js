@@ -45,7 +45,7 @@ export default function Home() {
     return field.answer || "No information available";
   }
 
-  function getDriveDocumentsForSubmission(submissionId) {
+  function getDocumentsForSubmission(submissionId) {
     const match = driveData.find(
       (folder) => String(folder.submissionId) === String(submissionId)
     );
@@ -97,8 +97,8 @@ export default function Home() {
       ? submissions
       : submissions.filter((s) => s.answers?.["3"]?.answer === selectedFacility);
 
-  const totalDriveDocuments = filteredSubmissions.reduce((count, submission) => {
-    return count + getDriveDocumentsForSubmission(submission.id).length;
+  const totalDocuments = filteredSubmissions.reduce((count, submission) => {
+    return count + getDocumentsForSubmission(submission.id).length;
   }, 0);
 
   return (
@@ -107,7 +107,7 @@ export default function Home() {
         <p style={styles.kicker}>Survey Intelligence</p>
         <h1 style={styles.title}>Survey Enforcement Dashboard</h1>
         <p style={styles.subtitle}>
-          Live survey activity from Jotform, with documents matched from Google Drive.
+          Live survey activity from Jotform with matched document review and parsing.
         </p>
       </section>
 
@@ -135,19 +135,19 @@ export default function Home() {
         </div>
 
         <div style={styles.statCard}>
-          <p style={styles.statLabel}>Drive Documents Matched</p>
-          <h2 style={styles.statNumber}>{totalDriveDocuments}</h2>
+          <p style={styles.statLabel}>Documents Matched</p>
+          <h2 style={styles.statNumber}>{totalDocuments}</h2>
         </div>
 
         <div style={styles.statCard}>
-          <p style={styles.statLabel}>Drive Submission Folders</p>
+          <p style={styles.statLabel}>Submission Folders</p>
           <h2 style={styles.statNumber}>{driveData.length}</h2>
         </div>
       </section>
 
       {filteredSubmissions.map((submission) => {
         const answers = submission.answers;
-        const driveDocs = getDriveDocumentsForSubmission(submission.id);
+        const documents = getDocumentsForSubmission(submission.id);
 
         return (
           <section key={submission.id} style={styles.card}>
@@ -158,17 +158,17 @@ export default function Home() {
                   {getAnswer(answers, "4")} • Intake #{getAnswer(answers, "6")}
                 </p>
                 <p style={styles.submissionId}>
-                  Jotform Submission ID: {submission.id}
+                  Submission ID: {submission.id}
                 </p>
               </div>
 
-              {driveDocs.length > 0 ? (
+              {documents.length > 0 ? (
                 <span style={styles.uploadedBadge}>
-                  {driveDocs.length} Drive Document(s) Found
+                  Documents Available
                 </span>
               ) : (
                 <span style={styles.missingBadge}>
-                  No Drive Documents Matched
+                  No Documents Matched
                 </span>
               )}
             </div>
@@ -206,30 +206,23 @@ export default function Home() {
             </div>
 
             <div style={styles.documentsSection}>
-              <h3 style={styles.sectionTitle}>Google Drive Documents</h3>
+              <h3 style={styles.sectionTitle}>Documents</h3>
 
-              {driveDocs.length === 0 ? (
+              {documents.length === 0 ? (
                 <p style={styles.noDocs}>
-                  No Google Drive documents found for this submission yet.
+                  No documents found for this submission yet.
                 </p>
               ) : (
-                driveDocs.map((file, index) => {
+                documents.map((file) => {
                   const key = `${submission.id}-${file.fileId}`;
                   const parsed = parsedDocs[key];
+                  const documentName = file.name || "Unnamed PDF";
 
                   return (
                     <div key={file.fileId} style={styles.documentBox}>
                       <div style={styles.documentHeader}>
                         <div>
-                          <p style={styles.documentName}>
-                            Document {index + 1}
-                          </p>
-                          <p style={styles.documentMeta}>
-                            {file.name || "Unnamed PDF"}
-                          </p>
-                          <p style={styles.fileId}>
-                            Drive File ID: {file.fileId}
-                          </p>
+                          <p style={styles.documentName}>{documentName}</p>
                         </div>
 
                         <span style={styles.pdfBadge}>PDF</span>
@@ -242,7 +235,7 @@ export default function Home() {
                           rel="noreferrer"
                           style={styles.documentLink}
                         >
-                          View in Drive
+                          View File
                         </a>
 
                         <button
@@ -264,7 +257,7 @@ export default function Home() {
 
                           <p>
                             <strong>File Name:</strong>{" "}
-                            {parsed.fileName || file.name || "Unknown"}
+                            {parsed.fileName || documentName}
                           </p>
 
                           <p>
@@ -294,16 +287,36 @@ export default function Home() {
                           {parsed.deficiencies?.length > 0 && (
                             <div style={styles.deficiencyList}>
                               <strong>Deficiency Detail:</strong>
-                              {parsed.deficiencies.map((def, defIndex) => (
-                                <div key={defIndex} style={styles.deficiencyPill}>
-                                  {def.ftag}
-                                  {def.scopeSeverity
-                                    ? ` - ${def.scopeSeverity}`
-                                    : " - Scope/Severity not found"}
-                                </div>
-                              ))}
+                              <div style={styles.pillWrap}>
+                                {parsed.deficiencies.map((def, defIndex) => (
+                                  <div key={defIndex} style={styles.deficiencyPill}>
+                                    {def.ftag}
+                                    {def.scopeSeverity
+                                      ? ` - ${def.scopeSeverity}`
+                                      : " - Scope/Severity not found"}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
+
+                          {parsed.surveyStartDate || parsed.surveyEndDate || parsed.surveyCompletedDate ? (
+                            <div style={styles.extractedDates}>
+                              <strong>Extracted Dates:</strong>
+                              <p>
+                                Survey Start:{" "}
+                                {parsed.surveyStartDate || "Not found"}
+                              </p>
+                              <p>
+                                Survey End:{" "}
+                                {parsed.surveyEndDate || "Not found"}
+                              </p>
+                              <p>
+                                Survey Completed:{" "}
+                                {parsed.surveyCompletedDate || "Not found"}
+                              </p>
+                            </div>
+                          ) : null}
 
                           <details>
                             <summary>Text Preview / Debug</summary>
@@ -506,18 +519,6 @@ const styles = {
     fontSize: "16px",
   },
 
-  documentMeta: {
-    margin: "4px 0 0",
-    color: "#64748b",
-    fontSize: "14px",
-  },
-
-  fileId: {
-    margin: "4px 0 0",
-    color: "#94a3b8",
-    fontSize: "12px",
-  },
-
   pdfBadge: {
     background: "#dbeafe",
     color: "#1e40af",
@@ -570,15 +571,26 @@ const styles = {
     marginBottom: "12px",
   },
 
+  pillWrap: {
+    marginTop: "8px",
+  },
+
   deficiencyPill: {
     display: "inline-block",
-    marginTop: "8px",
     marginRight: "8px",
+    marginBottom: "8px",
     background: "#fee2e2",
     color: "#991b1b",
     padding: "8px 12px",
     borderRadius: "999px",
     fontWeight: "700",
+  },
+
+  extractedDates: {
+    marginTop: "14px",
+    padding: "12px",
+    borderRadius: "12px",
+    background: "#f8fafc",
   },
 
   preview: {
