@@ -7,6 +7,7 @@ export default function Home() {
   const [driveData, setDriveData] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState("All Facilities");
   const [selectedYear, setSelectedYear] = useState("All Years");
+  const [selectedDocumentStatus, setSelectedDocumentStatus] = useState("All Document Statuses");
   const [parsedDocs, setParsedDocs] = useState({});
   const [loadingDoc, setLoadingDoc] = useState(null);
 
@@ -127,6 +128,7 @@ export default function Home() {
     if (!documents || documents.length === 0) {
       return {
         label: "Missing Documents",
+        value: "Missing Documents",
         style: styles.missingBadge,
         missingItems: ["Regulatory documents"],
       };
@@ -159,6 +161,7 @@ export default function Home() {
     if (missingItems.length > 0) {
       return {
         label: `Missing: ${missingItems.join(", ")}`,
+        value: "Incomplete Documents",
         style: styles.warningBadge,
         missingItems,
       };
@@ -166,9 +169,39 @@ export default function Home() {
 
     return {
       label: "Documents Complete",
+      value: "Documents Complete",
       style: styles.uploadedBadge,
       missingItems: [],
     };
+  }
+
+  function documentStatusMatchesFilter(submission) {
+    if (selectedDocumentStatus === "All Document Statuses") return true;
+
+    const documents = getRelevantDocumentsForSubmission(submission.id);
+    const status = getDocumentStatus(documents);
+
+    if (selectedDocumentStatus === "Missing Documents") {
+      return status.value === "Missing Documents";
+    }
+
+    if (selectedDocumentStatus === "Missing Cover Letter") {
+      return status.missingItems.includes("Cover Letter");
+    }
+
+    if (selectedDocumentStatus === "Missing CMS-2567 / Survey Document") {
+      return status.missingItems.includes("CMS-2567 / Survey Document");
+    }
+
+    if (selectedDocumentStatus === "Incomplete Documents") {
+      return status.value === "Incomplete Documents" || status.value === "Missing Documents";
+    }
+
+    if (selectedDocumentStatus === "Documents Complete") {
+      return status.value === "Documents Complete";
+    }
+
+    return true;
   }
 
   async function viewFindings(fileId, key) {
@@ -218,6 +251,15 @@ export default function Home() {
     return ["All Years", ...Array.from(new Set(extractedYears)).sort().reverse()];
   }, [submissions]);
 
+  const documentStatusOptions = [
+    "All Document Statuses",
+    "Incomplete Documents",
+    "Missing Documents",
+    "Missing Cover Letter",
+    "Missing CMS-2567 / Survey Document",
+    "Documents Complete",
+  ];
+
   const filteredSubmissions = submissions.filter((submission) => {
     const facilityMatches =
       selectedFacility === "All Facilities" ||
@@ -227,7 +269,9 @@ export default function Home() {
       selectedYear === "All Years" ||
       getYearFromSubmission(submission) === selectedYear;
 
-    return facilityMatches && yearMatches;
+    const documentMatches = documentStatusMatchesFilter(submission);
+
+    return facilityMatches && yearMatches && documentMatches;
   });
 
   function getParsedFindingsForSubmission(submissionId) {
@@ -329,6 +373,21 @@ export default function Home() {
               {years.map((year) => (
                 <option key={year} value={year}>
                   {year}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={styles.label}>Document Status</label>
+            <select
+              value={selectedDocumentStatus}
+              onChange={(e) => setSelectedDocumentStatus(e.target.value)}
+              style={styles.select}
+            >
+              {documentStatusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {status}
                 </option>
               ))}
             </select>
