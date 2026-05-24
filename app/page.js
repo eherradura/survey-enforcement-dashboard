@@ -53,23 +53,33 @@ export default function Home() {
     return match?.files || [];
   }
 
-  async function parsePdf(fileUrl, key) {
+  async function parsePdf(fileId, key) {
     setLoadingDoc(key);
 
-    const res = await fetch("/api/parse-document", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ fileUrl }),
-    });
+    try {
+      const res = await fetch("/api/parse-document", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ fileId }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    setParsedDocs((prev) => ({
-      ...prev,
-      [key]: data,
-    }));
+      setParsedDocs((prev) => ({
+        ...prev,
+        [key]: data,
+      }));
+    } catch (error) {
+      setParsedDocs((prev) => ({
+        ...prev,
+        [key]: {
+          success: false,
+          error: error.message,
+        },
+      }));
+    }
 
     setLoadingDoc(null);
   }
@@ -217,6 +227,9 @@ export default function Home() {
                           <p style={styles.documentMeta}>
                             {file.name || "Unnamed PDF"}
                           </p>
+                          <p style={styles.fileId}>
+                            Drive File ID: {file.fileId}
+                          </p>
                         </div>
 
                         <span style={styles.pdfBadge}>PDF</span>
@@ -233,9 +246,7 @@ export default function Home() {
                         </a>
 
                         <button
-                          onClick={() =>
-                            parsePdf(file.downloadUrl || file.url, key)
-                          }
+                          onClick={() => parsePdf(file.fileId, key)}
                           style={styles.parseButton}
                         >
                           {loadingDoc === key ? "Parsing..." : "Parse PDF"}
@@ -244,6 +255,18 @@ export default function Home() {
 
                       {parsed && (
                         <div style={styles.parseResult}>
+                          {parsed.success === false && (
+                            <p style={styles.errorText}>
+                              <strong>Parser Error:</strong>{" "}
+                              {parsed.error || "Unknown error"}
+                            </p>
+                          )}
+
+                          <p>
+                            <strong>File Name:</strong>{" "}
+                            {parsed.fileName || file.name || "Unknown"}
+                          </p>
+
                           <p>
                             <strong>Intake Number From PDF:</strong>{" "}
                             {parsed.intakeNumberFromPdf || "Not found"}
@@ -267,6 +290,20 @@ export default function Home() {
                               ? parsed.scopeSeverity.join(", ")
                               : "None found"}
                           </p>
+
+                          {parsed.deficiencies?.length > 0 && (
+                            <div style={styles.deficiencyList}>
+                              <strong>Deficiency Detail:</strong>
+                              {parsed.deficiencies.map((def, defIndex) => (
+                                <div key={defIndex} style={styles.deficiencyPill}>
+                                  {def.ftag}
+                                  {def.scopeSeverity
+                                    ? ` - ${def.scopeSeverity}`
+                                    : " - Scope/Severity not found"}
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
                           <details>
                             <summary>Text Preview / Debug</summary>
@@ -475,6 +512,12 @@ const styles = {
     fontSize: "14px",
   },
 
+  fileId: {
+    margin: "4px 0 0",
+    color: "#94a3b8",
+    fontSize: "12px",
+  },
+
   pdfBadge: {
     background: "#dbeafe",
     color: "#1e40af",
@@ -516,6 +559,26 @@ const styles = {
     padding: "14px",
     background: "#eef4ff",
     borderRadius: "12px",
+  },
+
+  errorText: {
+    color: "#991b1b",
+  },
+
+  deficiencyList: {
+    marginTop: "12px",
+    marginBottom: "12px",
+  },
+
+  deficiencyPill: {
+    display: "inline-block",
+    marginTop: "8px",
+    marginRight: "8px",
+    background: "#fee2e2",
+    color: "#991b1b",
+    padding: "8px 12px",
+    borderRadius: "999px",
+    fontWeight: "700",
   },
 
   preview: {
