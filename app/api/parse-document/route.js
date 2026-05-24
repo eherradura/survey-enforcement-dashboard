@@ -33,24 +33,101 @@ function severityRank(letter) {
   return order[String(letter || "").toUpperCase()] || 0;
 }
 
+function isAnnualOrRecertification(fileName, text) {
+  const combined = `${fileName || ""} ${text || ""}`;
+
+  return /annual survey|recertification|re certification|standard survey|standard recertification/i.test(
+    combined
+  );
+}
+
+function extractIntakeNumber(fileName, text) {
+  const cleanText = text.replace(/\s+/g, " ").trim();
+
+  if (isAnnualOrRecertification(fileName, cleanText)) {
+    return "Recertification";
+  }
+
+  const intakeMatch =
+    cleanText.match(/intake\s*(number|#)?\s*[:#]?\s*([A-Z]{1,5}\d{4,})/i) ||
+    cleanText.match(/\bCA\d{4,}\b/i);
+
+  if (!intakeMatch) {
+    return null;
+  }
+
+  return intakeMatch[2] || intakeMatch[0];
+}
+
 function extractDeficiencies(text) {
+  const normalized = normalizeText(text);
+  const lines = normalized
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
   const deficiencies = [];
-  const seen = new Set();
+  const seenByFtag = new Map();
 
   /*
     CMS-2567 usually appears like:
     F0689
     SS = E
 
-    We only accept scope/severity if we see an actual SS pattern.
-    This avoids false matches like:
-    F689 Free of Accident Hazards/Supervision/Devices
-    where random letters get picked up incorrectly.
+    Sometimes OCR puts the SS on the same line, sometimes the next line.
+    This checks the F-tag line plus nearby lines.
   */
 
-  const sectionRegex = /\bF\s*0?(\d{3})\b([\s\S]{0,300}?)(?=\bF\s*0?\d{3}\b|$)/gi;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
 
-  for (const match of text.matchAll(sectionRegex)) {
+    const ftagMatches = [...line.matchAll(/\bF\s*0?(\d{3})\b/gi)];
+
+    for (const ftagMatch of ftagMatches) {
+      const ftag = normalizeFtag(ftagMatch[1]);
+
+      if (ftag === "F000") {
+        continue;
+      }
+
+      const nearbyText = lines.slice(i, i + 8).join(" ");
+
+      const ssMatch =
+        nearbyText.match(/\bSS\s*[:=]\s*([A-L])\b/i) ||
+        nearbyText.match(/\bS\/S\s*[:=]\s*([A-L])\b/i) ||
+        nearbyText.match(/\bScope\s*\/?\s*Severity\s*[:=]\s*([A-L])\b/i);
+
+      const scopeSeverity = ssMatch ? ssMatch[1].toUpperCase() : null;
+
+      const existing = seenByFtag.get(ftag);
+
+      if (!existing) {
+        seenByFtag.set(ftag, {
+          ftag,
+          scopeSeverity,
+        });
+      } else if (
+        scopeSeverity &&
+        severityRank(scopeSeverity) > severityRank(existing.scopeSeverity)
+      ) {
+        seenByFtag.set(ftag, {
+          ftag,
+          scopeSeverity,
+        });
+      }
+    }
+  }
+
+  /*
+    Backup scan for OCR that flattened everything into one long line.
+  */
+
+  const flattened = normalized.replace(/\n/g, " ");
+
+  const sectionRegex =
+    /\bF\s*0?(\d{3})\b([\s\S]{0,500}?)(?=\bF\s*0?\d{3}\b|$)/gi;
+
+  for (const match of flattened.matchAll(sectionRegex)) {
     const ftag = normalizeFtag(match[1]);
 
     if (ftag === "F000") {
@@ -66,74 +143,25 @@ function extractDeficiencies(text) {
 
     const scopeSeverity = ssMatch ? ssMatch[1].toUpperCase() : null;
 
-    const key = `${ftag}-${scopeSeverity || "NONE"}`;
+    const existing = seenByFtag.get(ftag);
 
-    if (!seen.has(key)) {
-      seen.add(key);
-      deficiencies.push({
+    if (!existing) {
+      seenByFtag.set(ftag, {
+        ftag,
+        scopeSeverity,
+      });
+    } else if (
+      scopeSeverity &&
+      severityRank(scopeSeverity) > severityRank(existing.scopeSeverity)
+    ) {
+      seenByFtag.set(ftag, {
         ftag,
         scopeSeverity,
       });
     }
   }
 
-  /*
-    Backup pattern for OCR text that keeps F-tag and SS together:
-    F0689 SS = E
-  */
-
-  const directRegex =
-    /\bF\s*0?(\d{3})\b\s*(?:\n|\s|.){0,80}?\b(?:SS|S\/S)\s*[:=]\s*([A-L])\b/gi;
-
-  for (const match of text.matchAll(directRegex)) {
-    const ftag = normalizeFtag(match[1]);
-
-    if (ftag === "F000") {
-      continue;
-    }
-
-    const scopeSeverity = match[2].toUpperCase();
-    const key = `${ftag}-${scopeSeverity}`;
-
-    if (!seen.has(key)) {
-      seen.add(key);
-      deficiencies.push({
-        ftag,
-        scopeSeverity,
-      });
-    }
-  }
-
-  /*
-    If F-tags are found but no SS is found, include the tag with no SS.
-    But still ignore F000.
-  */
-
-  const allFtagRegex = /\bF\s*0?(\d{3})\b/gi;
-
-  for (const match of text.matchAll(allFtagRegex)) {
-    const ftag = normalizeFtag(match[1]);
-
-    if (ftag === "F000") {
-      continue;
-    }
-
-    const alreadyExists = deficiencies.some((d) => d.ftag === ftag);
-
-    if (!alreadyExists) {
-      deficiencies.push({
-        ftag,
-        scopeSeverity: null,
-      });
-    }
-  }
-
-  /*
-    Sort by scope/severity:
-    L highest → A lowest.
-    If same severity, sort by F-tag number.
-    If no SS, push to the bottom.
-  */
+  deficiencies.push(...seenByFtag.values());
 
   deficiencies.sort((a, b) => {
     const severityDifference =
@@ -150,29 +178,6 @@ function extractDeficiencies(text) {
   });
 
   return deficiencies;
-}
-
-function extractIntakeNumber(text) {
-  const cleanText = text.replace(/\s+/g, " ").trim();
-
-  const isRecertification =
-    /recertification|re\s*certification|annual survey|standard survey/i.test(
-      cleanText
-    );
-
-  if (isRecertification) {
-    return "Recertification";
-  }
-
-  const intakeMatch =
-    cleanText.match(/intake\s*(number|#)?\s*[:#]?\s*([A-Z0-9-]+)/i) ||
-    cleanText.match(/\bCA\d{2,}\b/i);
-
-  if (!intakeMatch) {
-    return null;
-  }
-
-  return intakeMatch[2] || intakeMatch[0];
 }
 
 export async function POST(request) {
@@ -229,6 +234,8 @@ export async function POST(request) {
     formData.append("isOverlayRequired", "false");
     formData.append("detectOrientation", "true");
     formData.append("scale", "true");
+    formData.append("isTable", "true");
+    formData.append("filetype", "PDF");
     formData.append("OCREngine", "2");
     formData.append("file", pdfBlob, fileData.fileName || "survey.pdf");
 
@@ -239,12 +246,16 @@ export async function POST(request) {
 
     const ocrData = await ocrResponse.json();
 
-    const rawText =
-      ocrData?.ParsedResults?.map((r) => r.ParsedText).join("\n") || "";
+    const parsedResults = ocrData?.ParsedResults || [];
+
+    const rawText = parsedResults
+      .map((result) => result.ParsedText || "")
+      .join("\n\n--- PAGE BREAK ---\n\n");
 
     const text = normalizeText(rawText);
+
+    const intakeNumberFromPdf = extractIntakeNumber(fileData.fileName, text);
     const deficiencies = extractDeficiencies(text);
-    const intakeNumberFromPdf = extractIntakeNumber(text);
 
     return Response.json({
       success: true,
@@ -258,7 +269,9 @@ export async function POST(request) {
       scopeSeverity: deficiencies
         .map((d) => d.scopeSeverity)
         .filter(Boolean),
-      textPreview: text.slice(0, 6000),
+      parsedResultCount: parsedResults.length,
+      textLength: text.length,
+      textPreview: text.slice(0, 12000),
       rawOcrData: ocrData,
     });
   } catch (error) {
