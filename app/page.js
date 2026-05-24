@@ -258,11 +258,36 @@ export default function Home() {
     return summary;
   }, {});
 
-  const severityOrder = ["L", "K", "J", "I", "H", "G", "F", "E", "D", "C", "B", "A", "Unknown"];
+  const severityOrder = [
+    "L",
+    "K",
+    "J",
+    "I",
+    "H",
+    "G",
+    "F",
+    "E",
+    "D",
+    "C",
+    "B",
+    "A",
+    "Unknown",
+  ];
 
   const severitySummaryText = severityOrder
     .filter((severity) => severitySummary[severity])
     .map((severity) => `${severity}: ${severitySummary[severity]}`)
+    .join(" • ");
+
+  const surveyTypeBreakdown = filteredSubmissions.reduce((summary, submission) => {
+    const surveyType = getAnswer(submission.answers, "4") || "Unknown";
+    summary[surveyType] = (summary[surveyType] || 0) + 1;
+    return summary;
+  }, {});
+
+  const surveyTypeBreakdownText = Object.entries(surveyTypeBreakdown)
+    .sort((a, b) => b[1] - a[1])
+    .map(([type, count]) => `${type}: ${count}`)
     .join(" • ");
 
   return (
@@ -312,6 +337,9 @@ export default function Home() {
           <div style={styles.eventTile}>
             <p style={styles.eventTileLabel}>Survey Events</p>
             <h2 style={styles.eventTileNumber}>{filteredSubmissions.length}</h2>
+            <p style={styles.breakdownText}>
+              {surveyTypeBreakdownText || "No survey activity"}
+            </p>
           </div>
 
           <div style={styles.eventTile}>
@@ -342,9 +370,7 @@ export default function Home() {
                 <p style={styles.meta}>
                   {getAnswer(answers, "4")} • Intake #{getAnswer(answers, "6")}
                 </p>
-                <p style={styles.submissionId}>
-                  Submission ID: {submission.id}
-                </p>
+                <p style={styles.submissionId}>Submission ID: {submission.id}</p>
               </div>
 
               <span style={documentStatus.style}>{documentStatus.label}</span>
@@ -596,7 +622,7 @@ const styles = {
 
   tileGrid: {
     display: "grid",
-    gridTemplateColumns: "220px 260px 1fr",
+    gridTemplateColumns: "1fr 1fr 1.4fr",
     gap: "16px",
   },
 
@@ -631,6 +657,14 @@ const styles = {
     fontSize: "46px",
     margin: "6px 0 0",
     letterSpacing: "-1px",
+  },
+
+  breakdownText: {
+    margin: "10px 0 0",
+    color: "#475569",
+    fontSize: "13px",
+    lineHeight: 1.45,
+    fontWeight: "700",
   },
 
   severityText: {
