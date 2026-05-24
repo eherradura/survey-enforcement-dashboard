@@ -163,13 +163,9 @@ export default function Home() {
               </div>
 
               {documents.length > 0 ? (
-                <span style={styles.uploadedBadge}>
-                  Documents Available
-                </span>
+                <span style={styles.uploadedBadge}>Documents Available</span>
               ) : (
-                <span style={styles.missingBadge}>
-                  No Documents Matched
-                </span>
+                <span style={styles.missingBadge}>No Documents Matched</span>
               )}
             </div>
 
@@ -221,10 +217,7 @@ export default function Home() {
                   return (
                     <div key={file.fileId} style={styles.documentBox}>
                       <div style={styles.documentHeader}>
-                        <div>
-                          <p style={styles.documentName}>{documentName}</p>
-                        </div>
-
+                        <p style={styles.documentName}>{documentName}</p>
                         <span style={styles.pdfBadge}>PDF</span>
                       </div>
 
@@ -255,36 +248,18 @@ export default function Home() {
                             </p>
                           )}
 
-                          <p>
-                            <strong>File Name:</strong>{" "}
-                            {parsed.fileName || documentName}
-                          </p>
+                          {parsed.coverLetterFound === false && (
+                            <p>
+                              <strong>Cover Letter:</strong> Not found
+                            </p>
+                          )}
 
                           <p>
                             <strong>Intake Number From PDF:</strong>{" "}
                             {parsed.intakeNumberFromPdf || "Not found"}
                           </p>
 
-                          <p>
-                            <strong>Deficiencies Found:</strong>{" "}
-                            {parsed.deficienciesFound ? "Yes" : "No"}
-                          </p>
-
-                          <p>
-                            <strong>F-Tags:</strong>{" "}
-                            {parsed.ftags?.length
-                              ? parsed.ftags.join(", ")
-                              : "None found"}
-                          </p>
-
-                          <p>
-                            <strong>Scope/Severity:</strong>{" "}
-                            {parsed.scopeSeverity?.length
-                              ? parsed.scopeSeverity.join(", ")
-                              : "None found"}
-                          </p>
-
-                          {parsed.deficiencies?.length > 0 && (
+                          {parsed.deficiencies?.length > 0 ? (
                             <div style={styles.deficiencyList}>
                               <strong>Deficiency Detail:</strong>
                               <div style={styles.pillWrap}>
@@ -298,9 +273,15 @@ export default function Home() {
                                 ))}
                               </div>
                             </div>
+                          ) : (
+                            <p>
+                              <strong>Deficiency:</strong> No deficiency
+                            </p>
                           )}
 
-                          {parsed.surveyStartDate || parsed.surveyEndDate || parsed.surveyCompletedDate ? (
+                          {parsed.surveyStartDate ||
+                          parsed.surveyEndDate ||
+                          parsed.surveyCompletedDate ? (
                             <div style={styles.extractedDates}>
                               <strong>Extracted Dates:</strong>
                               <p>
@@ -308,8 +289,7 @@ export default function Home() {
                                 {parsed.surveyStartDate || "Not found"}
                               </p>
                               <p>
-                                Survey End:{" "}
-                                {parsed.surveyEndDate || "Not found"}
+                                Survey End: {parsed.surveyEndDate || "Not found"}
                               </p>
                               <p>
                                 Survey Completed:{" "}
