@@ -7,7 +7,9 @@ export default function Home() {
   const [driveData, setDriveData] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState("All Facilities");
   const [selectedYear, setSelectedYear] = useState("All Years");
-  const [selectedDocumentStatus, setSelectedDocumentStatus] = useState("All Document Statuses");
+  const [selectedDocumentStatus, setSelectedDocumentStatus] = useState(
+    "All Document Statuses"
+  );
   const [parsedDocs, setParsedDocs] = useState({});
   const [loadingDoc, setLoadingDoc] = useState(null);
 
@@ -194,7 +196,10 @@ export default function Home() {
     }
 
     if (selectedDocumentStatus === "Incomplete Documents") {
-      return status.value === "Incomplete Documents" || status.value === "Missing Documents";
+      return (
+        status.value === "Incomplete Documents" ||
+        status.value === "Missing Documents"
+      );
     }
 
     if (selectedDocumentStatus === "Documents Complete") {
@@ -204,7 +209,13 @@ export default function Home() {
     return true;
   }
 
-  async function viewFindings(fileId, key) {
+  async function viewFindings({
+    fileId,
+    key,
+    submissionId,
+    facility,
+    surveyType,
+  }) {
     setLoadingDoc(key);
 
     try {
@@ -213,7 +224,12 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ fileId }),
+        body: JSON.stringify({
+          fileId,
+          submissionId,
+          facility,
+          surveyType,
+        }),
       });
 
       const data = await res.json();
@@ -318,10 +334,12 @@ export default function Home() {
     "Unknown",
   ];
 
-  const severitySummaryText = severityOrder
+  const severitySummaryItems = severityOrder
     .filter((severity) => severitySummary[severity])
-    .map((severity) => `${severity}: ${severitySummary[severity]}`)
-    .join(" • ");
+    .map((severity) => ({
+      severity,
+      count: severitySummary[severity],
+    }));
 
   const surveyTypeBreakdown = filteredSubmissions.reduce((summary, submission) => {
     const surveyType = getAnswer(submission.answers, "4") || "Unknown";
@@ -422,9 +440,23 @@ export default function Home() {
 
           <div style={styles.eventTileWide}>
             <p style={styles.eventTileLabel}>Severity Summary</p>
-            <h2 style={styles.severityText}>
-              {severitySummaryText || "No findings reviewed yet"}
-            </h2>
+
+            <div style={styles.severityList}>
+              {severitySummaryItems.length > 0 ? (
+                severitySummaryItems.map((item) => (
+                  <div key={item.severity} style={styles.severityItem}>
+                    <span>{item.severity}</span>
+                    <strong>
+                      {item.count} {item.count === 1 ? "tag" : "tags"}
+                    </strong>
+                  </div>
+                ))
+              ) : (
+                <div style={styles.severityEmpty}>
+                  No findings reviewed yet
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -434,14 +466,16 @@ export default function Home() {
         const documents = getRelevantDocumentsForSubmission(submission.id);
         const documentStatus = getDocumentStatus(documents);
         const comments = getComments(answers);
+        const facility = getAnswer(answers, "3");
+        const surveyType = getAnswer(answers, "4");
 
         return (
           <section key={submission.id} style={styles.card}>
             <div style={styles.cardTop}>
               <div>
-                <h2 style={styles.facilityName}>{getAnswer(answers, "3")}</h2>
+                <h2 style={styles.facilityName}>{facility}</h2>
                 <p style={styles.meta}>
-                  {getAnswer(answers, "4")} • Intake #{getAnswer(answers, "6")}
+                  {surveyType} • Intake #{getAnswer(answers, "6")}
                 </p>
                 <p style={styles.submissionId}>Submission ID: {submission.id}</p>
               </div>
@@ -527,7 +561,15 @@ export default function Home() {
                           </a>
 
                           <button
-                            onClick={() => viewFindings(file.fileId, key)}
+                            onClick={() =>
+                              viewFindings({
+                                fileId: file.fileId,
+                                key,
+                                submissionId: submission.id,
+                                facility,
+                                surveyType,
+                              })
+                            }
                             style={styles.parseButton}
                           >
                             {loadingDoc === key
@@ -593,7 +635,7 @@ const styles = {
     minHeight: "100vh",
     overflow: "hidden",
     background: "#f4f7fb",
-    padding: "34px",
+    padding: "28px",
     fontFamily:
       "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
     color: "#0f172a",
@@ -638,17 +680,17 @@ const styles = {
     background:
       "linear-gradient(135deg, rgba(15, 42, 74, 0.98), rgba(30, 64, 115, 0.95))",
     color: "white",
-    padding: "42px",
-    borderRadius: "30px",
-    marginBottom: "22px",
-    boxShadow: "0 22px 55px rgba(15, 42, 74, 0.24)",
+    padding: "32px",
+    borderRadius: "26px",
+    marginBottom: "18px",
+    boxShadow: "0 18px 45px rgba(15, 42, 74, 0.22)",
     border: "1px solid rgba(255,255,255,0.16)",
   },
 
   title: {
-    fontSize: "54px",
+    fontSize: "46px",
     lineHeight: 1,
-    letterSpacing: "-1.8px",
+    letterSpacing: "-1.4px",
     margin: 0,
     fontWeight: "800",
   },
@@ -657,171 +699,195 @@ const styles = {
     position: "relative",
     display: "grid",
     gridTemplateColumns: "1fr",
-    gap: "18px",
-    marginBottom: "22px",
+    gap: "14px",
+    marginBottom: "18px",
   },
 
   filterGrid: {
     display: "flex",
-    gap: "16px",
+    gap: "14px",
     flexWrap: "wrap",
-    background: "rgba(255,255,255,0.82)",
+    background: "rgba(255,255,255,0.84)",
     backdropFilter: "blur(14px)",
     border: "1px solid rgba(226, 232, 240, 0.9)",
-    padding: "20px",
-    borderRadius: "24px",
-    boxShadow: "0 14px 32px rgba(15, 23, 42, 0.08)",
+    padding: "16px",
+    borderRadius: "22px",
+    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.07)",
   },
 
   label: {
     display: "block",
     fontWeight: "800",
-    fontSize: "12px",
+    fontSize: "11px",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     color: "#64748b",
-    marginBottom: "8px",
+    marginBottom: "7px",
   },
 
   select: {
-    padding: "13px 14px",
-    borderRadius: "14px",
+    padding: "11px 13px",
+    borderRadius: "13px",
     border: "1px solid #cbd5e1",
     background: "white",
-    fontSize: "15px",
-    minWidth: "260px",
+    fontSize: "14px",
+    minWidth: "250px",
     outline: "none",
   },
 
   tileGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 1.4fr",
-    gap: "16px",
+    gridTemplateColumns: "1fr 1fr 1.15fr",
+    gap: "14px",
   },
 
   eventTile: {
-    background: "rgba(255,255,255,0.88)",
+    background: "rgba(255,255,255,0.9)",
     backdropFilter: "blur(14px)",
     border: "1px solid rgba(226, 232, 240, 0.95)",
-    padding: "22px",
-    borderRadius: "24px",
-    boxShadow: "0 14px 32px rgba(15, 23, 42, 0.08)",
+    padding: "18px",
+    borderRadius: "22px",
+    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.07)",
   },
 
   eventTileWide: {
-    background: "rgba(255,255,255,0.88)",
+    background: "rgba(255,255,255,0.9)",
     backdropFilter: "blur(14px)",
     border: "1px solid rgba(226, 232, 240, 0.95)",
-    padding: "22px",
-    borderRadius: "24px",
-    boxShadow: "0 14px 32px rgba(15, 23, 42, 0.08)",
+    padding: "18px",
+    borderRadius: "22px",
+    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.07)",
   },
 
   eventTileLabel: {
     margin: 0,
     color: "#64748b",
     fontWeight: "800",
-    fontSize: "13px",
+    fontSize: "12px",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
   },
 
   eventTileNumber: {
-    fontSize: "46px",
-    margin: "6px 0 0",
+    fontSize: "40px",
+    margin: "5px 0 0",
     letterSpacing: "-1px",
   },
 
   breakdownList: {
-    marginTop: "14px",
+    marginTop: "10px",
     display: "grid",
-    gap: "8px",
+    gap: "6px",
   },
 
   breakdownItem: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: "14px",
+    gap: "12px",
     color: "#475569",
     fontSize: "13px",
-    lineHeight: 1.35,
+    lineHeight: 1.3,
     fontWeight: "700",
     borderTop: "1px solid #e2e8f0",
-    paddingTop: "8px",
+    paddingTop: "7px",
   },
 
-  severityText: {
-    fontSize: "28px",
-    margin: "12px 0 0",
-    letterSpacing: "-0.5px",
+  severityList: {
+    marginTop: "10px",
+    display: "grid",
+    gap: "7px",
+  },
+
+  severityItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    color: "#1e293b",
+    fontSize: "17px",
+    fontWeight: "800",
+    borderTop: "1px solid #e2e8f0",
+    paddingTop: "7px",
+  },
+
+  severityEmpty: {
+    marginTop: "10px",
+    color: "#64748b",
+    fontSize: "15px",
+    fontWeight: "700",
   },
 
   card: {
     position: "relative",
-    background: "rgba(255,255,255,0.90)",
+    background: "rgba(255,255,255,0.92)",
     backdropFilter: "blur(12px)",
-    padding: "26px",
-    borderRadius: "28px",
-    marginBottom: "22px",
-    boxShadow: "0 16px 38px rgba(15, 23, 42, 0.08)",
+    padding: "22px",
+    borderRadius: "26px",
+    marginBottom: "18px",
+    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.075)",
     border: "1px solid rgba(226, 232, 240, 0.95)",
   },
 
   cardTop: {
     display: "flex",
     justifyContent: "space-between",
-    gap: "20px",
-    marginBottom: "22px",
+    gap: "18px",
+    marginBottom: "16px",
     alignItems: "flex-start",
   },
 
   facilityName: {
     margin: 0,
-    fontSize: "30px",
-    letterSpacing: "-0.5px",
+    fontSize: "27px",
+    letterSpacing: "-0.4px",
   },
 
   meta: {
     color: "#64748b",
-    marginTop: "6px",
-    fontSize: "16px",
+    marginTop: "5px",
+    marginBottom: 0,
+    fontSize: "15px",
   },
 
   submissionId: {
     color: "#94a3b8",
-    fontSize: "13px",
-    marginTop: "4px",
+    fontSize: "12px",
+    marginTop: "5px",
+    marginBottom: 0,
   },
 
   uploadedBadge: {
     background: "#dcfce7",
     color: "#166534",
-    padding: "10px 14px",
+    padding: "9px 13px",
     borderRadius: "999px",
     fontWeight: "800",
     height: "fit-content",
     whiteSpace: "nowrap",
+    fontSize: "13px",
   },
 
   warningBadge: {
     background: "#fef3c7",
     color: "#92400e",
-    padding: "10px 14px",
+    padding: "9px 13px",
     borderRadius: "999px",
     fontWeight: "800",
     height: "fit-content",
     whiteSpace: "nowrap",
+    fontSize: "13px",
   },
 
   missingBadge: {
     background: "#fee2e2",
     color: "#991b1b",
-    padding: "10px 14px",
+    padding: "9px 13px",
     borderRadius: "999px",
     fontWeight: "800",
     height: "fit-content",
     whiteSpace: "nowrap",
+    fontSize: "13px",
   },
 
   detailsGrid: {
@@ -829,51 +895,51 @@ const styles = {
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     gap: "1px",
     background: "#e2e8f0",
-    borderRadius: "20px",
+    borderRadius: "18px",
     overflow: "hidden",
-    marginBottom: "22px",
+    marginBottom: "16px",
     border: "1px solid #e2e8f0",
   },
 
   detailItem: {
     background: "#f8fafc",
-    padding: "18px",
-    minHeight: "86px",
+    padding: "14px 16px",
+    minHeight: "66px",
   },
 
   commentsItem: {
     gridColumn: "1 / -1",
     background: "#f8fafc",
-    padding: "18px",
+    padding: "14px 16px",
   },
 
   detailLabel: {
     display: "block",
-    fontSize: "12px",
+    fontSize: "11px",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     color: "#64748b",
     fontWeight: "800",
-    marginBottom: "8px",
+    marginBottom: "6px",
   },
 
   detailValue: {
     margin: 0,
-    fontSize: "16px",
+    fontSize: "15px",
     color: "#0f172a",
   },
 
   commentValue: {
     margin: 0,
-    fontSize: "15px",
+    fontSize: "14px",
     color: "#334155",
-    lineHeight: 1.55,
+    lineHeight: 1.45,
   },
 
   documentsSection: {
     background: "#f8fafc",
-    padding: "20px",
-    borderRadius: "22px",
+    padding: "16px",
+    borderRadius: "20px",
     border: "1px solid #e2e8f0",
   },
 
@@ -881,66 +947,68 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: "12px",
+    marginBottom: "10px",
   },
 
   sectionTitle: {
     margin: 0,
-    fontSize: "21px",
+    fontSize: "20px",
   },
 
   noDocs: {
     color: "#64748b",
-    lineHeight: 1.5,
+    lineHeight: 1.45,
+    margin: 0,
   },
 
   missingDocumentBox: {
     background: "#fff7ed",
     color: "#9a3412",
     border: "1px solid #fed7aa",
-    borderRadius: "16px",
-    padding: "14px",
-    marginBottom: "14px",
+    borderRadius: "14px",
+    padding: "12px",
+    marginBottom: "12px",
+    fontSize: "14px",
   },
 
   documentList: {
     display: "grid",
-    gap: "14px",
+    gap: "12px",
   },
 
   documentBox: {
     background: "white",
     border: "1px solid #e5e7eb",
-    borderRadius: "18px",
-    padding: "16px",
+    borderRadius: "16px",
+    padding: "14px",
   },
 
   documentHeader: {
     display: "flex",
     justifyContent: "space-between",
     gap: "12px",
-    marginBottom: "12px",
+    marginBottom: "10px",
   },
 
   documentName: {
     margin: 0,
     fontWeight: "800",
-    fontSize: "16px",
+    fontSize: "15px",
   },
 
   pdfBadge: {
     background: "#dbeafe",
     color: "#1e40af",
-    padding: "6px 10px",
+    padding: "5px 9px",
     borderRadius: "999px",
     fontWeight: "800",
     height: "fit-content",
-    fontSize: "12px",
+    fontSize: "11px",
   },
 
   buttonRow: {
     display: "flex",
-    gap: "10px",
+    gap: "9px",
     flexWrap: "wrap",
   },
 
@@ -948,27 +1016,29 @@ const styles = {
     display: "inline-block",
     background: "#2563eb",
     color: "white",
-    padding: "10px 14px",
-    borderRadius: "12px",
+    padding: "9px 13px",
+    borderRadius: "11px",
     textDecoration: "none",
     fontWeight: "800",
+    fontSize: "14px",
   },
 
   parseButton: {
     background: "#111827",
     color: "white",
-    padding: "10px 14px",
-    borderRadius: "12px",
+    padding: "9px 13px",
+    borderRadius: "11px",
     border: "none",
     fontWeight: "800",
     cursor: "pointer",
+    fontSize: "14px",
   },
 
   parseResult: {
-    marginTop: "14px",
-    padding: "14px",
+    marginTop: "12px",
+    padding: "12px",
     background: "#eef4ff",
-    borderRadius: "14px",
+    borderRadius: "13px",
     border: "1px solid #dbeafe",
   },
 
@@ -977,12 +1047,14 @@ const styles = {
   },
 
   findingLine: {
-    margin: "0 0 10px",
+    margin: "0 0 9px",
+    fontSize: "14px",
   },
 
   deficiencyList: {
-    marginTop: "12px",
-    marginBottom: "12px",
+    marginTop: "10px",
+    marginBottom: "8px",
+    fontSize: "14px",
   },
 
   pillWrap: {
@@ -991,12 +1063,13 @@ const styles = {
 
   deficiencyPill: {
     display: "inline-block",
-    marginRight: "8px",
-    marginBottom: "8px",
+    marginRight: "7px",
+    marginBottom: "7px",
     background: "#fee2e2",
     color: "#991b1b",
-    padding: "8px 12px",
+    padding: "7px 11px",
     borderRadius: "999px",
     fontWeight: "800",
+    fontSize: "13px",
   },
 };
