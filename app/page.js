@@ -45,12 +45,46 @@ export default function Home() {
     return field.answer || "No information available";
   }
 
-  function getDocumentsForSubmission(submissionId) {
+  function getAllDocumentsForSubmission(submissionId) {
     const match = driveData.find(
       (folder) => String(folder.submissionId) === String(submissionId)
     );
 
     return match?.files || [];
+  }
+
+  function isJotformSubmissionPdf(file, submissionId) {
+    const name = (file.name || "").toLowerCase().trim();
+
+    if (name === `${submissionId}.pdf`.toLowerCase()) return true;
+
+    // Filters generic Jotform-generated submission PDFs like 6538150687635847857.pdf
+    if (/^\d+\.pdf$/i.test(name)) return true;
+
+    return false;
+  }
+
+  function getRelevantDocumentsForSubmission(submissionId) {
+    const allDocuments = getAllDocumentsForSubmission(submissionId);
+
+    return allDocuments.filter((file) => {
+      if (!file.name) return false;
+      if (isJotformSubmissionPdf(file, submissionId)) return false;
+
+      const name = file.name.toLowerCase();
+
+      return (
+        name.includes("2567") ||
+        name.includes("cover") ||
+        name.includes("letter") ||
+        name.includes("annual") ||
+        name.includes("survey") ||
+        name.includes("life safety") ||
+        name.includes("enforcement") ||
+        name.includes("deficiency") ||
+        name.includes("poc")
+      );
+    });
   }
 
   async function parsePdf(fileId, key) {
@@ -97,8 +131,8 @@ export default function Home() {
       ? submissions
       : submissions.filter((s) => s.answers?.["3"]?.answer === selectedFacility);
 
-  const totalDocuments = filteredSubmissions.reduce((count, submission) => {
-    return count + getDocumentsForSubmission(submission.id).length;
+  const totalRelevantDocuments = filteredSubmissions.reduce((count, submission) => {
+    return count + getRelevantDocumentsForSubmission(submission.id).length;
   }, 0);
 
   return (
@@ -107,7 +141,7 @@ export default function Home() {
         <p style={styles.kicker}>Survey Intelligence</p>
         <h1 style={styles.title}>Survey Enforcement Dashboard</h1>
         <p style={styles.subtitle}>
-          Live survey activity from Jotform with matched document review and parsing.
+          Live survey activity from Jotform with matched regulatory documents and parsing.
         </p>
       </section>
 
@@ -135,8 +169,8 @@ export default function Home() {
         </div>
 
         <div style={styles.statCard}>
-          <p style={styles.statLabel}>Documents Matched</p>
-          <h2 style={styles.statNumber}>{totalDocuments}</h2>
+          <p style={styles.statLabel}>Regulatory Documents Matched</p>
+          <h2 style={styles.statNumber}>{totalRelevantDocuments}</h2>
         </div>
 
         <div style={styles.statCard}>
@@ -147,7 +181,7 @@ export default function Home() {
 
       {filteredSubmissions.map((submission) => {
         const answers = submission.answers;
-        const documents = getDocumentsForSubmission(submission.id);
+        const documents = getRelevantDocumentsForSubmission(submission.id);
 
         return (
           <section key={submission.id} style={styles.card}>
@@ -165,7 +199,7 @@ export default function Home() {
               {documents.length > 0 ? (
                 <span style={styles.uploadedBadge}>Documents Available</span>
               ) : (
-                <span style={styles.missingBadge}>No Documents Matched</span>
+                <span style={styles.missingBadge}>Missing Documents</span>
               )}
             </div>
 
@@ -205,9 +239,13 @@ export default function Home() {
               <h3 style={styles.sectionTitle}>Documents</h3>
 
               {documents.length === 0 ? (
-                <p style={styles.noDocs}>
-                  No documents found for this submission yet.
-                </p>
+                <div style={styles.missingDocumentBox}>
+                  <strong>Missing documents</strong>
+                  <p>
+                    No cover letter, CMS-2567, life safety survey, enforcement letter,
+                    or related regulatory document has been matched to this survey event yet.
+                  </p>
+                </div>
               ) : (
                 documents.map((file) => {
                   const key = `${submission.id}-${file.fileId}`;
@@ -248,12 +286,6 @@ export default function Home() {
                             </p>
                           )}
 
-                          {parsed.coverLetterFound === false && (
-                            <p>
-                              <strong>Cover Letter:</strong> Not found
-                            </p>
-                          )}
-
                           <p>
                             <strong>Intake Number From PDF:</strong>{" "}
                             {parsed.intakeNumberFromPdf || "Not found"}
@@ -278,32 +310,6 @@ export default function Home() {
                               <strong>Deficiency:</strong> No deficiency
                             </p>
                           )}
-
-                          {parsed.surveyStartDate ||
-                          parsed.surveyEndDate ||
-                          parsed.surveyCompletedDate ? (
-                            <div style={styles.extractedDates}>
-                              <strong>Extracted Dates:</strong>
-                              <p>
-                                Survey Start:{" "}
-                                {parsed.surveyStartDate || "Not found"}
-                              </p>
-                              <p>
-                                Survey End: {parsed.surveyEndDate || "Not found"}
-                              </p>
-                              <p>
-                                Survey Completed:{" "}
-                                {parsed.surveyCompletedDate || "Not found"}
-                              </p>
-                            </div>
-                          ) : null}
-
-                          <details>
-                            <summary>Text Preview / Debug</summary>
-                            <pre style={styles.preview}>
-                              {JSON.stringify(parsed, null, 2)}
-                            </pre>
-                          </details>
                         </div>
                       )}
                     </div>
@@ -474,8 +480,12 @@ const styles = {
     marginTop: 0,
   },
 
-  noDocs: {
-    color: "#64748b",
+  missingDocumentBox: {
+    background: "#fff7ed",
+    color: "#9a3412",
+    border: "1px solid #fed7aa",
+    borderRadius: "14px",
+    padding: "16px",
   },
 
   documentBox: {
@@ -564,22 +574,5 @@ const styles = {
     padding: "8px 12px",
     borderRadius: "999px",
     fontWeight: "700",
-  },
-
-  extractedDates: {
-    marginTop: "14px",
-    padding: "12px",
-    borderRadius: "12px",
-    background: "#f8fafc",
-  },
-
-  preview: {
-    whiteSpace: "pre-wrap",
-    background: "#0f172a",
-    color: "white",
-    padding: "12px",
-    borderRadius: "10px",
-    maxHeight: "360px",
-    overflow: "auto",
   },
 };
