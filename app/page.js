@@ -87,6 +87,54 @@ export default function Home() {
     });
   }
 
+  function getDocumentStatus(documents) {
+    if (!documents || documents.length === 0) {
+      return {
+        label: "Missing Documents",
+        style: styles.missingBadge,
+        missingItems: ["Regulatory documents"],
+      };
+    }
+
+    const names = documents.map((file) => (file.name || "").toLowerCase());
+
+    const hasCoverLetter = names.some(
+      (name) => name.includes("cover") || name.includes("letter")
+    );
+
+    const hasSurveyDocument = names.some(
+      (name) =>
+        name.includes("2567") ||
+        name.includes("annual") ||
+        name.includes("survey") ||
+        name.includes("deficiency")
+    );
+
+    const missingItems = [];
+
+    if (!hasCoverLetter) {
+      missingItems.push("Cover Letter");
+    }
+
+    if (!hasSurveyDocument) {
+      missingItems.push("CMS-2567 / Survey Document");
+    }
+
+    if (missingItems.length > 0) {
+      return {
+        label: `Documents Available — Missing: ${missingItems.join(", ")}`,
+        style: styles.warningBadge,
+        missingItems,
+      };
+    }
+
+    return {
+      label: "Documents Complete",
+      style: styles.uploadedBadge,
+      missingItems: [],
+    };
+  }
+
   async function parsePdf(fileId, key) {
     setLoadingDoc(key);
 
@@ -182,6 +230,7 @@ export default function Home() {
       {filteredSubmissions.map((submission) => {
         const answers = submission.answers;
         const documents = getRelevantDocumentsForSubmission(submission.id);
+        const documentStatus = getDocumentStatus(documents);
 
         return (
           <section key={submission.id} style={styles.card}>
@@ -196,11 +245,7 @@ export default function Home() {
                 </p>
               </div>
 
-              {documents.length > 0 ? (
-                <span style={styles.uploadedBadge}>Documents Available</span>
-              ) : (
-                <span style={styles.missingBadge}>Missing Documents</span>
-              )}
+              <span style={documentStatus.style}>{documentStatus.label}</span>
             </div>
 
             <div style={styles.grid}>
@@ -238,14 +283,17 @@ export default function Home() {
             <div style={styles.documentsSection}>
               <h3 style={styles.sectionTitle}>Documents</h3>
 
-              {documents.length === 0 ? (
+              {documentStatus.missingItems.length > 0 && (
                 <div style={styles.missingDocumentBox}>
-                  <strong>Missing documents</strong>
-                  <p>
-                    No cover letter, CMS-2567, life safety survey, enforcement letter,
-                    or related regulatory document has been matched to this survey event yet.
-                  </p>
+                  <strong>Missing:</strong> {documentStatus.missingItems.join(", ")}
                 </div>
+              )}
+
+              {documents.length === 0 ? (
+                <p style={styles.noDocs}>
+                  No cover letter, CMS-2567, life safety survey, enforcement letter,
+                  or related regulatory document has been matched to this survey event yet.
+                </p>
               ) : (
                 documents.map((file) => {
                   const key = `${submission.id}-${file.fileId}`;
@@ -451,6 +499,15 @@ const styles = {
     height: "fit-content",
   },
 
+  warningBadge: {
+    background: "#fef3c7",
+    color: "#92400e",
+    padding: "10px 14px",
+    borderRadius: "999px",
+    fontWeight: "700",
+    height: "fit-content",
+  },
+
   missingBadge: {
     background: "#fee2e2",
     color: "#991b1b",
@@ -480,12 +537,17 @@ const styles = {
     marginTop: 0,
   },
 
+  noDocs: {
+    color: "#64748b",
+  },
+
   missingDocumentBox: {
     background: "#fff7ed",
     color: "#9a3412",
     border: "1px solid #fed7aa",
     borderRadius: "14px",
-    padding: "16px",
+    padding: "14px",
+    marginBottom: "14px",
   },
 
   documentBox: {
