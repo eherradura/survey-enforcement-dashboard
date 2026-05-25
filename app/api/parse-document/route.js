@@ -4,7 +4,7 @@ export const maxDuration = 300;
 import { Storage } from "@google-cloud/storage";
 import vision from "@google-cloud/vision";
 
-const PARSER_VERSION = "direct-pdf-v4-google-cloud-vision-fallback";
+const PARSER_VERSION = "direct-pdf-v5-remedy-date-extraction";
 
 async function loadPdfParse() {
   const pdfParseModule = await import("pdf-parse/lib/pdf-parse.js");
@@ -173,6 +173,75 @@ function extractDeficiencies(text) {
   return deficiencies;
 }
 
+function convertLongDateToDisplay(value) {
+  if (!value) return null;
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const year = parsed.getFullYear();
+
+  return `${month}-${day}-${year}`;
+}
+
+function extractRemedyDates(text) {
+  const cleanText = text.replace(/\s+/g, " ").trim();
+
+  const dpnaMatch =
+    cleanText.match(
+      /DPNA\s+effective\s+([A-Z][a-z]+ \d{1,2}, \d{4})/i
+    ) ||
+    cleanText.match(
+      /denial\s+of\s+payment\s+for\s+new\s+admissions.*?effective\s+([A-Z][a-z]+ \d{1,2}, \d{4})/i
+    ) ||
+    cleanText.match(
+      /statutory\s+DPNA\s+effective\s+([A-Z][a-z]+ \d{1,2}, \d{4})/i
+    );
+
+  const terminationMatch =
+    cleanText.match(
+      /provider\s+agreement\s+be\s+terminated\s+on\s+([A-Z][a-z]+ \d{1,2},\s*\d{4})/i
+    ) ||
+    cleanText.match(
+      /terminated\s+on\s+([A-Z][a-z]+ \d{1,2},\s*\d{4})/i
+    ) ||
+    cleanText.match(
+      /termination\s+date\s*[:\-]?\s*([A-Z][a-z]+ \d{1,2},\s*\d{4})/i
+    );
+
+  const cmpMatch =
+    cleanText.match(
+      /civil\s+money\s+penalty.*?\(\$?([\d,]+(?:\.\d{2})?)\)/i
+    ) ||
+    cleanText.match(
+      /\$\s*([\d,]+(?:\.\d{2})?)\s*(?:civil money penalty|CMP)/i
+    );
+
+  const substantialComplianceDeadlineMatch =
+    cleanText.match(
+      /failed\s+to\s+achieve\s+substantial\s+compliance\s+by\s+([A-Z][a-z]+ \d{1,2},\s*\d{4})/i
+    ) ||
+    cleanText.match(
+      /substantial\s+compliance\s+has\s+not\s+been\s+achieved\s+by\s+([A-Z][a-z]+ \d{1,2},\s*\d{4})/i
+    );
+
+  return {
+    dpnaDateFromPdf: dpnaMatch ? convertLongDateToDisplay(dpnaMatch[1]) : null,
+    terminationDateFromPdf: terminationMatch
+      ? convertLongDateToDisplay(terminationMatch[1])
+      : null,
+    cmpAmountFromPdf: cmpMatch ? `$${cmpMatch[1]}` : null,
+    substantialComplianceDeadlineFromPdf: substantialComplianceDeadlineMatch
+      ? convertLongDateToDisplay(substantialComplianceDeadlineMatch[1])
+      : null,
+  };
+}
+
 function extractSurveyDates(text) {
   const cleanText = text.replace(/\s+/g, " ").trim();
 
@@ -266,6 +335,8 @@ function buildCompactDebug(text, directResult, ocrResult, visionResult, selected
     /\bS\/S\s*[:=]?\s*[A-L]\b/gi,
     /\bScope\s*\/?\s*Severity\b/gi,
     /\b483\.\d+/gi,
+    /\bDPNA\b/gi,
+    /\bterminated\s+on\b/gi,
   ];
 
   for (const pattern of patterns) {
@@ -278,10 +349,10 @@ function buildCompactDebug(text, directResult, ocrResult, visionResult, selected
         snippet: flattened.slice(start, end),
       });
 
-      if (tagSnippets.length >= 30) break;
+      if (tagSnippets.length >= 35) break;
     }
 
-    if (tagSnippets.length >= 30) break;
+    if (tagSnippets.length >= 35) break;
   }
 
   return {
@@ -690,7 +761,12 @@ function chooseBestTextSource(directResult, ocrResult, visionResult = null) {
     (visionHasFtags ? 200000 : 0) +
     (visionHasCfr ? 50000 : 0);
 
-  if (visionResult?.success && visionText.length > 200 && visionScore >= directScore && visionScore >= ocrScore) {
+  if (
+    visionResult?.success &&
+    visionText.length > 200 &&
+    visionScore >= directScore &&
+    visionScore >= ocrScore
+  ) {
     return {
       source: visionResult.source,
       fileName: visionResult.fileName,
@@ -807,6 +883,7 @@ function buildParsedResult({
     text
   );
   const dates = extractSurveyDates(text);
+  const remedyDates = extractRemedyDates(text);
   const severitySummary = buildSeveritySummary(deficiencies);
   const coverLetterSignal = detectCoverLetterDeficiencyIndication(text);
   const compactDebug = buildCompactDebug(
@@ -839,6 +916,11 @@ function buildParsedResult({
     surveyCompletedDate: dates.surveyCompletedDate,
     surveyStartDate: dates.surveyStartDate,
     surveyEndDate: dates.surveyEndDate,
+    dpnaDateFromPdf: remedyDates.dpnaDateFromPdf,
+    terminationDateFromPdf: remedyDates.terminationDateFromPdf,
+    cmpAmountFromPdf: remedyDates.cmpAmountFromPdf,
+    substantialComplianceDeadlineFromPdf:
+      remedyDates.substantialComplianceDeadlineFromPdf,
     textLength: text.length,
     textSource: selectedTextSource.source,
     ocrSource: selectedTextSource.source,
@@ -868,6 +950,11 @@ function buildResultForSaving(parsedResult) {
     surveyCompletedDate: parsedResult.surveyCompletedDate,
     surveyStartDate: parsedResult.surveyStartDate,
     surveyEndDate: parsedResult.surveyEndDate,
+    dpnaDateFromPdf: parsedResult.dpnaDateFromPdf,
+    terminationDateFromPdf: parsedResult.terminationDateFromPdf,
+    cmpAmountFromPdf: parsedResult.cmpAmountFromPdf,
+    substantialComplianceDeadlineFromPdf:
+      parsedResult.substantialComplianceDeadlineFromPdf,
     textLength: parsedResult.textLength,
     textSource: parsedResult.textSource,
     ocrSource: parsedResult.ocrSource,
