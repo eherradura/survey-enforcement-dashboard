@@ -1,6 +1,8 @@
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const PARSER_VERSION = "direct-pdf-v2-compact";
+
 async function loadPdfParse() {
   const pdfParseModule = await import("pdf-parse");
   return pdfParseModule.default || pdfParseModule;
@@ -58,9 +60,7 @@ function extractIntakeNumber(fileName, text) {
     cleanText.match(/intake\s*(number|#)?\s*[:#]?\s*([A-Z]{1,5}\d{4,})/i) ||
     cleanText.match(/\bCA\d{4,}\b/i);
 
-  if (!intakeMatch) {
-    return null;
-  }
+  if (!intakeMatch) return null;
 
   return intakeMatch[2] || intakeMatch[0];
 }
@@ -98,7 +98,6 @@ function extractDeficiencies(text) {
     .map((line) => line.trim())
     .filter(Boolean);
 
-  // Pattern 1: line-based F-tag with nearby SS/scope severity
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const ftagMatches = [...line.matchAll(/\bF\s*0?(\d{3})\b/gi)];
@@ -108,14 +107,15 @@ function extractDeficiencies(text) {
 
       if (ftag === "F000") continue;
 
-      const nearbyText = lines.slice(i, i + 28).join(" ");
+      const nearbyText = lines.slice(i, i + 32).join(" ");
 
       const ssMatch =
         nearbyText.match(/\bSS\s*[:=]?\s*([A-L])\b/i) ||
         nearbyText.match(/\bS\/S\s*[:=]?\s*([A-L])\b/i) ||
         nearbyText.match(/\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/i) ||
         nearbyText.match(/\bScope\s+and\s+Severity\s*[:=]?\s*([A-L])\b/i) ||
-        nearbyText.match(/\bSeverity\s*[:=]?\s*([A-L])\b/i);
+        nearbyText.match(/\bSeverity\s*[:=]?\s*([A-L])\b/i) ||
+        nearbyText.match(/\bLevel\s*[:=]?\s*([A-L])\b/i);
 
       if (ssMatch) {
         addDeficiency(deficienciesByFtag, ftag, ssMatch[1]);
@@ -123,15 +123,19 @@ function extractDeficiencies(text) {
     }
   }
 
-  // Pattern 2: compact same-block patterns
-  const compactPatterns = [
-    /\bF\s*0?(\d{3})\b.{0,500}?\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b/gi,
-    /\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b.{0,500}?\bF\s*0?(\d{3})\b/gi,
-    /\bF\s*0?(\d{3})\b.{0,500}?\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/gi,
-    /\bF\s*0?(\d{3})\b.{0,500}?\bSeverity\s*[:=]?\s*([A-L])\b/gi,
+  const patterns = [
+    /\bF\s*0?(\d{3})\b.{0,700}?\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b/gi,
+    /\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b.{0,700}?\bF\s*0?(\d{3})\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,700}?\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,700}?\bSeverity\s*[:=]?\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,700}?\bLevel\s*[:=]?\s*([A-L])\b/gi,
+    /\bTag\s*[:#]?\s*F?\s*0?(\d{3})\b.{0,1000}?\b(?:Scope\s*\/?\s*Severity|Severity|SS|S\/S|Level)\s*[:=]?\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\s+([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\s*[-–—]\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\b(?:(?!\bF\s*0?\d{3}\b).){0,2200}?\b(?:SS|S\/S|Scope\s*\/?\s*Severity|Scope\s+and\s+Severity|Severity|Level)\s*[:=]?\s*([A-L])\b/gi,
   ];
 
-  for (const pattern of compactPatterns) {
+  for (const pattern of patterns) {
     for (const match of flattened.matchAll(pattern)) {
       let ftag;
       let severity;
@@ -148,68 +152,13 @@ function extractDeficiencies(text) {
     }
   }
 
-  // Pattern 3: F 0689 D or F689 E
-  const directFtagSeverityPattern = /\bF\s*0?(\d{3})\s+([A-L])\b/gi;
-
-  for (const match of flattened.matchAll(directFtagSeverityPattern)) {
-    const ftag = normalizeFtag(match[1]);
-    const severity = match[2];
-
-    addDeficiency(deficienciesByFtag, ftag, severity);
-  }
-
-  // Pattern 4: F689 - E
-  const dashPattern = /\bF\s*0?(\d{3})\s*[-–—]\s*([A-L])\b/gi;
-
-  for (const match of flattened.matchAll(dashPattern)) {
-    const ftag = normalizeFtag(match[1]);
-    const severity = match[2];
-
-    addDeficiency(deficienciesByFtag, ftag, severity);
-  }
-
-  // Pattern 5: Tag F689 ... Severity E
-  const tagScopePattern =
-    /\bTag\s*[:#]?\s*F?\s*0?(\d{3})\b.{0,900}?\b(?:Scope\s*\/?\s*Severity|Severity|SS|S\/S)\s*[:=]?\s*([A-L])\b/gi;
-
-  for (const match of flattened.matchAll(tagScopePattern)) {
-    const ftag = normalizeFtag(match[1]);
-    const severity = match[2];
-
-    addDeficiency(deficienciesByFtag, ftag, severity);
-  }
-
-  // Pattern 6: broad F-tag block with severity later
-  const broadBlockPattern =
-    /\bF\s*0?(\d{3})\b(?:(?!\bF\s*0?\d{3}\b).){0,1800}?\b(?:SS|S\/S|Scope\s*\/?\s*Severity|Scope\s+and\s+Severity|Severity)\s*[:=]?\s*([A-L])\b/gi;
-
-  for (const match of flattened.matchAll(broadBlockPattern)) {
-    const ftag = normalizeFtag(match[1]);
-    const severity = match[2];
-
-    addDeficiency(deficienciesByFtag, ftag, severity);
-  }
-
-  // Pattern 7: F689 ... Level E
-  const levelPattern =
-    /\bF\s*0?(\d{3})\b.{0,900}?\b(?:level|severity level)\s*[:=]?\s*([A-L])\b/gi;
-
-  for (const match of flattened.matchAll(levelPattern)) {
-    const ftag = normalizeFtag(match[1]);
-    const severity = match[2];
-
-    addDeficiency(deficienciesByFtag, ftag, severity);
-  }
-
   const deficiencies = [...deficienciesByFtag.values()];
 
   deficiencies.sort((a, b) => {
     const severityDifference =
       severityRank(b.scopeSeverity) - severityRank(a.scopeSeverity);
 
-    if (severityDifference !== 0) {
-      return severityDifference;
-    }
+    if (severityDifference !== 0) return severityDifference;
 
     const aNumber = Number(a.ftag.replace("F", ""));
     const bNumber = Number(b.ftag.replace("F", ""));
@@ -278,7 +227,7 @@ function detectCoverLetterDeficiencyIndication(text) {
   const cleanText = text.replace(/\s+/g, " ").trim();
 
   const mentionsDeficiencies =
-    /this survey found the most serious deficiency|deficiencies cited during this survey|poc for the deficiencies|statement of deficiencies/i.test(
+    /this survey found the most serious deficiency|deficiencies cited during this survey|poc for the deficiencies|statement of deficiencies|cms.?2567/i.test(
       cleanText
     );
 
@@ -299,91 +248,88 @@ function detectCoverLetterDeficiencyIndication(text) {
   };
 }
 
-function buildDebugFtagSnippets(text) {
+function buildCompactDebug(text, directResult, ocrResult, selectedTextSource) {
   const normalized = normalizeText(text);
   const flattened = normalized.replace(/\n/g, " ");
-  const snippets = [];
 
+  const firstFtagMatch = flattened.match(/\bF\s*0?\d{3}\b/i);
+  const firstCfrMatch = flattened.match(/\b483\.\d+/i);
+
+  const tagSnippets = [];
   const patterns = [
     /\bF\s*0?\d{3}\b/gi,
-    /\bF[-\s]?\d{3}\b/gi,
-    /\bF\d{3}\b/gi,
     /\bSS\s*[:=]?\s*[A-L]\b/gi,
     /\bS\/S\s*[:=]?\s*[A-L]\b/gi,
     /\bScope\s*\/?\s*Severity\b/gi,
-    /\bTag\s*[:#]?\s*F?\s*0?\d{3}\b/gi,
-    /\bCFR\s*483\b/gi,
     /\b483\.\d+/gi,
   ];
 
   for (const pattern of patterns) {
     for (const match of flattened.matchAll(pattern)) {
-      const start = Math.max(match.index - 450, 0);
-      const end = Math.min(match.index + 900, flattened.length);
+      const start = Math.max(match.index - 250, 0);
+      const end = Math.min(match.index + 450, flattened.length);
 
-      snippets.push({
+      tagSnippets.push({
         match: match[0],
         snippet: flattened.slice(start, end),
       });
 
-      if (snippets.length >= 80) {
-        return snippets;
-      }
+      if (tagSnippets.length >= 20) break;
     }
+
+    if (tagSnippets.length >= 20) break;
   }
 
-  return snippets;
-}
-
-function extractPotentialTagLines(text) {
-  const normalized = normalizeText(text);
-
-  return normalized
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => {
-      return (
-        /\bF\s*0?\d{3}\b/i.test(line) ||
-        /\bF\d{3}\b/i.test(line) ||
-        /\bSS\s*[:=]?\s*[A-L]\b/i.test(line) ||
-        /\bS\/S\s*[:=]?\s*[A-L]\b/i.test(line) ||
-        /\bScope\s*\/?\s*Severity\b/i.test(line) ||
-        /\bTag\b/i.test(line) ||
-        /\bCFR\s*483\b/i.test(line) ||
-        /\b483\.\d+/i.test(line) ||
-        /\bdeficient practice\b/i.test(line)
-      );
-    })
-    .slice(0, 200);
-}
-
-function buildFullTextDebug(text) {
-  const normalized = normalizeText(text);
-  const flattened = normalized.replace(/\n/g, " ");
-
-  const totalLength = flattened.length;
-  const middleStart = Math.max(Math.floor(totalLength / 2) - 4000, 0);
-  const middleEnd = Math.min(Math.floor(totalLength / 2) + 4000, totalLength);
-
-  const statementIndex = flattened.search(/statement of deficiencies/i);
-  const cms2567Index = flattened.search(/cms\s*[-–—]?\s*2567|2567/i);
-  const providerIndex = flattened.search(/provider\/supplier|provider supplier/i);
-  const firstFtagMatch = flattened.match(/\bF\s*0?\d{3}\b/i);
-  const firstCfrMatch = flattened.match(/\b483\.\d+/i);
-  const firstDeficientPracticeIndex = flattened.search(/deficient practice/i);
-
   return {
-    textLength: totalLength,
-    debugTextStart: flattened.slice(0, 8000),
-    debugTextMiddle: flattened.slice(middleStart, middleEnd),
-    debugTextEnd: flattened.slice(Math.max(totalLength - 8000, 0), totalLength),
-    statementOfDeficienciesIndex: statementIndex >= 0 ? statementIndex : null,
-    cms2567Index: cms2567Index >= 0 ? cms2567Index : null,
-    providerIndex: providerIndex >= 0 ? providerIndex : null,
-    firstFtagLikeMatch: firstFtagMatch ? firstFtagMatch[0] : null,
-    firstCfrLikeMatch: firstCfrMatch ? firstCfrMatch[0] : null,
-    firstDeficientPracticeIndex:
-      firstDeficientPracticeIndex >= 0 ? firstDeficientPracticeIndex : null,
+    parserVersion: PARSER_VERSION,
+    selectedTextSource: {
+      source: selectedTextSource.source,
+      selectionReason: selectedTextSource.selectionReason,
+      directTextLength: selectedTextSource.directTextLength,
+      ocrTextLength: selectedTextSource.ocrTextLength,
+      directHasFtags: selectedTextSource.directHasFtags,
+      ocrHasFtags: selectedTextSource.ocrHasFtags,
+      directHasCfr: selectedTextSource.directHasCfr,
+      ocrHasCfr: selectedTextSource.ocrHasCfr,
+      directPageCount: selectedTextSource.directPageCount,
+    },
+    directResultSummary: {
+      success: directResult?.success || false,
+      error: directResult?.error || null,
+      details: directResult?.details || null,
+      textLength: normalizeText(directResult?.text || "").length,
+      pageCount: directResult?.pageCount || null,
+      fileName: directResult?.fileName || null,
+      mimeType: directResult?.mimeType || null,
+    },
+    ocrResultSummary: {
+      success: ocrResult?.success || false,
+      error: ocrResult?.error || null,
+      details: ocrResult?.details || null,
+      textLength: normalizeText(ocrResult?.text || "").length,
+      fileName: ocrResult?.fileName || null,
+      reason: ocrResult?.reason || null,
+    },
+    textMarkers: {
+      textLength: flattened.length,
+      statementOfDeficienciesIndex:
+        flattened.search(/statement of deficiencies/i) >= 0
+          ? flattened.search(/statement of deficiencies/i)
+          : null,
+      cms2567Index:
+        flattened.search(/cms\s*[-–—]?\s*2567|2567/i) >= 0
+          ? flattened.search(/cms\s*[-–—]?\s*2567|2567/i)
+          : null,
+      firstFtagLikeMatch: firstFtagMatch ? firstFtagMatch[0] : null,
+      firstCfrLikeMatch: firstCfrMatch ? firstCfrMatch[0] : null,
+      firstDeficientPracticeIndex:
+        flattened.search(/deficient practice/i) >= 0
+          ? flattened.search(/deficient practice/i)
+          : null,
+    },
+    debugTextStart: flattened.slice(0, 2500),
+    debugTextEnd: flattened.slice(Math.max(flattened.length - 2500, 0)),
+    debugFtagSnippets: tagSnippets,
   };
 }
 
@@ -440,7 +386,6 @@ async function getPdfTextDirectlyFromDrive(driveConnectorUrl, fileId) {
       text: parsed.text || "",
       pageCount: parsed.numpages || null,
       info: parsed.info || null,
-      metadata: parsed.metadata || null,
     };
   } catch (error) {
     return {
@@ -487,12 +432,12 @@ function chooseBestTextSource(directResult, ocrResult) {
   const ocrHasCfr = /\b483\.\d+/i.test(ocrText);
 
   const directScore =
-    (directText.length || 0) +
+    directText.length +
     (directHasFtags ? 100000 : 0) +
     (directHasCfr ? 20000 : 0);
 
   const ocrScore =
-    (ocrText.length || 0) +
+    ocrText.length +
     (ocrHasFtags ? 100000 : 0) +
     (ocrHasCfr ? 20000 : 0);
 
@@ -538,6 +483,7 @@ function chooseBestTextSource(directResult, ocrResult) {
       directHasFtags,
       ocrHasFtags,
       directHasCfr,
+      ocrHasCfr,
       directPageCount: directResult.pageCount || null,
       selectionReason: "Fallback to direct text despite low confidence",
     };
@@ -558,6 +504,91 @@ function chooseBestTextSource(directResult, ocrResult) {
   };
 }
 
+function buildParsedResult({
+  fileId,
+  submissionId,
+  facility,
+  surveyType,
+  selectedTextSource,
+  directResult,
+  ocrResult,
+}) {
+  const text = normalizeText(selectedTextSource.text || "");
+
+  const deficiencies = extractDeficiencies(text);
+  const intakeNumberFromPdf = extractIntakeNumber(
+    selectedTextSource.fileName,
+    text
+  );
+  const dates = extractSurveyDates(text);
+  const severitySummary = buildSeveritySummary(deficiencies);
+  const coverLetterSignal = detectCoverLetterDeficiencyIndication(text);
+  const compactDebug = buildCompactDebug(
+    text,
+    directResult,
+    ocrResult,
+    selectedTextSource
+  );
+
+  return {
+    success: true,
+    parserVersion: PARSER_VERSION,
+    fileName: selectedTextSource.fileName || directResult?.fileName || "",
+    fileId,
+    submissionId: submissionId || "",
+    facility: facility || "",
+    surveyType: surveyType || "",
+    intakeNumberFromPdf,
+    deficienciesFound:
+      deficiencies.length > 0 ||
+      coverLetterSignal.coverLetterIndicatesDeficiencies,
+    deficiencies,
+    ftags: deficiencies.map((d) => `${d.ftag} - ${d.scopeSeverity}`),
+    scopeSeverity: deficiencies.map((d) => d.scopeSeverity),
+    severitySummary,
+    coverLetterIndicatesDeficiencies:
+      coverLetterSignal.coverLetterIndicatesDeficiencies,
+    coverLetterHighestSeverity: coverLetterSignal.coverLetterHighestSeverity,
+    surveyCompletedDate: dates.surveyCompletedDate,
+    surveyStartDate: dates.surveyStartDate,
+    surveyEndDate: dates.surveyEndDate,
+    textLength: text.length,
+    textSource: selectedTextSource.source,
+    ocrSource: selectedTextSource.source,
+    savedAt: new Date().toISOString(),
+    extractionDebug: compactDebug,
+  };
+}
+
+function buildResultForSaving(parsedResult) {
+  return {
+    success: parsedResult.success,
+    parserVersion: parsedResult.parserVersion,
+    fileName: parsedResult.fileName,
+    fileId: parsedResult.fileId,
+    submissionId: parsedResult.submissionId,
+    facility: parsedResult.facility,
+    surveyType: parsedResult.surveyType,
+    intakeNumberFromPdf: parsedResult.intakeNumberFromPdf,
+    deficienciesFound: parsedResult.deficienciesFound,
+    deficiencies: parsedResult.deficiencies,
+    ftags: parsedResult.ftags,
+    scopeSeverity: parsedResult.scopeSeverity,
+    severitySummary: parsedResult.severitySummary,
+    coverLetterIndicatesDeficiencies:
+      parsedResult.coverLetterIndicatesDeficiencies,
+    coverLetterHighestSeverity: parsedResult.coverLetterHighestSeverity,
+    surveyCompletedDate: parsedResult.surveyCompletedDate,
+    surveyStartDate: parsedResult.surveyStartDate,
+    surveyEndDate: parsedResult.surveyEndDate,
+    textLength: parsedResult.textLength,
+    textSource: parsedResult.textSource,
+    ocrSource: parsedResult.ocrSource,
+    savedAt: parsedResult.savedAt,
+    extractionDebug: parsedResult.extractionDebug,
+  };
+}
+
 async function saveAnalysisToSheet({
   driveConnectorUrl,
   submissionId,
@@ -569,6 +600,8 @@ async function saveAnalysisToSheet({
   deficiencies,
   parsedResult,
 }) {
+  const compactRawJson = buildResultForSaving(parsedResult);
+
   const saveResponse = await fetch(driveConnectorUrl, {
     method: "POST",
     headers: {
@@ -583,7 +616,7 @@ async function saveAnalysisToSheet({
       surveyType,
       intakeNumberFromPdf,
       deficiencies,
-      rawJson: parsedResult,
+      rawJson: compactRawJson,
     }),
   });
 
@@ -609,6 +642,7 @@ export async function POST(request) {
     if (!fileId) {
       return Response.json({
         success: false,
+        parserVersion: PARSER_VERSION,
         error: "Missing fileId",
       });
     }
@@ -616,6 +650,7 @@ export async function POST(request) {
     if (!driveConnectorUrl) {
       return Response.json({
         success: false,
+        parserVersion: PARSER_VERSION,
         error: "Missing DRIVE_CONNECTOR_URL",
       });
     }
@@ -651,80 +686,34 @@ export async function POST(request) {
     if (!text) {
       return Response.json({
         success: false,
+        parserVersion: PARSER_VERSION,
         error: "No usable text extracted from PDF",
-        directResult,
-        ocrResult,
-      });
-    }
-
-    const deficiencies = extractDeficiencies(text);
-    const intakeNumberFromPdf = extractIntakeNumber(
-      selectedTextSource.fileName,
-      text
-    );
-    const dates = extractSurveyDates(text);
-    const severitySummary = buildSeveritySummary(deficiencies);
-    const coverLetterSignal = detectCoverLetterDeficiencyIndication(text);
-
-    const fullTextDebug = buildFullTextDebug(text);
-    const debugFtagSnippets = buildDebugFtagSnippets(text);
-    const debugPotentialTagLines = extractPotentialTagLines(text);
-
-    const parsedResult = {
-      success: true,
-      fileName: selectedTextSource.fileName || directResult.fileName || "",
-      fileId,
-      submissionId: submissionId || "",
-      facility: facility || "",
-      surveyType: surveyType || "",
-      intakeNumberFromPdf,
-      deficienciesFound:
-        deficiencies.length > 0 ||
-        coverLetterSignal.coverLetterIndicatesDeficiencies,
-      deficiencies,
-      ftags: deficiencies.map((d) => `${d.ftag} - ${d.scopeSeverity}`),
-      scopeSeverity: deficiencies.map((d) => d.scopeSeverity),
-      severitySummary,
-      coverLetterIndicatesDeficiencies:
-        coverLetterSignal.coverLetterIndicatesDeficiencies,
-      coverLetterHighestSeverity: coverLetterSignal.coverLetterHighestSeverity,
-      surveyCompletedDate: dates.surveyCompletedDate,
-      surveyStartDate: dates.surveyStartDate,
-      surveyEndDate: dates.surveyEndDate,
-      textLength: text.length,
-      textSource: selectedTextSource.source,
-      ocrSource: selectedTextSource.source,
-      savedAt: new Date().toISOString(),
-
-      extractionDebug: {
-        selectedTextSource,
         directResultSummary: {
           success: directResult?.success || false,
           error: directResult?.error || null,
           details: directResult?.details || null,
-          source: directResult?.source || null,
           textLength: normalizeText(directResult?.text || "").length,
-          pageCount: directResult?.pageCount || null,
           fileName: directResult?.fileName || null,
-          mimeType: directResult?.mimeType || null,
         },
         ocrResultSummary: {
           success: ocrResult?.success || false,
           error: ocrResult?.error || null,
           details: ocrResult?.details || null,
-          source: ocrResult?.source || null,
           textLength: normalizeText(ocrResult?.text || "").length,
           fileName: ocrResult?.fileName || null,
-          reason: ocrResult?.reason || null,
         },
-      },
+      });
+    }
 
-      debug: {
-        ...fullTextDebug,
-        debugPotentialTagLines,
-        debugFtagSnippets,
-      },
-    };
+    const parsedResult = buildParsedResult({
+      fileId,
+      submissionId,
+      facility,
+      surveyType,
+      selectedTextSource,
+      directResult,
+      ocrResult,
+    });
 
     const saveResult = await saveAnalysisToSheet({
       driveConnectorUrl,
@@ -733,8 +722,8 @@ export async function POST(request) {
       fileName: parsedResult.fileName || "",
       facility: facility || "",
       surveyType: surveyType || "",
-      intakeNumberFromPdf,
-      deficiencies,
+      intakeNumberFromPdf: parsedResult.intakeNumberFromPdf,
+      deficiencies: parsedResult.deficiencies,
       parsedResult,
     });
 
@@ -746,6 +735,7 @@ export async function POST(request) {
   } catch (error) {
     return Response.json({
       success: false,
+      parserVersion: PARSER_VERSION,
       error: error.message,
     });
   }
