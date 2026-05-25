@@ -273,22 +273,6 @@ function getSeverityPoints(scopeSeverity) {
   return DEFICIENCY_POINTS[severity] ?? 0;
 }
 
-function formatDateForDisplay(value) {
-  if (!value) return "No date entered";
-
-  const parsed = new Date(value);
-
-  if (!Number.isNaN(parsed.getTime())) {
-    const month = String(parsed.getMonth() + 1).padStart(2, "0");
-    const day = String(parsed.getDate()).padStart(2, "0");
-    const year = parsed.getFullYear();
-
-    return `${month}-${day}-${year}`;
-  }
-
-  return value;
-}
-
 function getYearFromDateValue(value) {
   if (!value) return null;
 
@@ -454,8 +438,8 @@ export default function WeeklySummaryByDivision({
   getAnswer,
   dashboardView = "weekly",
   onDashboardViewChange,
-  weeklyDays = 7,
-  onWeeklyDaysChange,
+  weeklyDateRange = { start: "", end: "" },
+  onWeeklyDateRangeChange,
 }) {
   const weeklyEventCount = weeklySummaryItems.length;
   const isStandingView = dashboardView === "standing";
@@ -714,22 +698,39 @@ export default function WeeklySummaryByDivision({
           </div>
 
           <div style={styles.timeframeRow}>
-            <h2 style={styles.title}>Past {weeklyDays} Days</h2>
+            <h2 style={styles.title}>Date Range</h2>
 
-            <select
-              value={weeklyDays}
-              onChange={(event) =>
-                onWeeklyDaysChange?.(Number(event.target.value))
-              }
-              style={styles.timeframeSelect}
-            >
-              <option value={7}>Past 7 days</option>
-              <option value={14}>Past 14 days</option>
-              <option value={30}>Past 30 days</option>
-              <option value={60}>Past 60 days</option>
-              <option value={90}>Past 90 days</option>
-              <option value={365}>Past 12 months</option>
-            </select>
+            <div style={styles.dateRangeControls}>
+              <label style={styles.dateLabel}>
+                From
+                <input
+                  type="date"
+                  value={weeklyDateRange.start || ""}
+                  onChange={(event) =>
+                    onWeeklyDateRangeChange?.({
+                      ...weeklyDateRange,
+                      start: event.target.value,
+                    })
+                  }
+                  style={styles.dateInput}
+                />
+              </label>
+
+              <label style={styles.dateLabel}>
+                To
+                <input
+                  type="date"
+                  value={weeklyDateRange.end || ""}
+                  onChange={(event) =>
+                    onWeeklyDateRangeChange?.({
+                      ...weeklyDateRange,
+                      end: event.target.value,
+                    })
+                  }
+                  style={styles.dateInput}
+                />
+              </label>
+            </div>
           </div>
         </div>
 
@@ -745,7 +746,7 @@ export default function WeeklySummaryByDivision({
       <div style={styles.weeklyContent}>
         {weeklyEventCount === 0 && (
           <p style={styles.emptyText}>
-            No survey activity in the past {weeklyDays} days.
+            No survey activity for the selected date range.
           </p>
         )}
 
@@ -915,12 +916,28 @@ const styles = {
   timeframeRow: {
     display: "flex",
     alignItems: "center",
-    gap: "10px",
+    gap: "12px",
     flexWrap: "wrap",
     marginTop: "4px",
   },
 
-  timeframeSelect: {
+  dateRangeControls: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+
+  dateLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    color: "#475569",
+    fontSize: "12px",
+    fontWeight: "900",
+  },
+
+  dateInput: {
     border: "1px solid #bfdbfe",
     background: "#eff6ff",
     color: "#1d4ed8",
