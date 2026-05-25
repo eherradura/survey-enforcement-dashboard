@@ -12,6 +12,7 @@ export default function Home() {
   );
   const [parsedDocs, setParsedDocs] = useState({});
   const [loadingDoc, setLoadingDoc] = useState(null);
+  const [savedAnalysisCount, setSavedAnalysisCount] = useState(0);
 
   useEffect(() => {
     async function loadData() {
@@ -22,6 +23,67 @@ export default function Home() {
       const driveRes = await fetch("/api/drive-files");
       const driveJson = await driveRes.json();
       setDriveData(driveJson.submissions || []);
+
+      const analysisRes = await fetch("/api/saved-analysis");
+      const analysisJson = await analysisRes.json();
+
+      if (analysisJson.success && Array.isArray(analysisJson.analysis)) {
+        const savedParsedDocs = {};
+
+        analysisJson.analysis.forEach((record) => {
+          const submissionId = String(record.submissionId || "");
+          const fileId = String(record.fileId || "");
+
+          if (!submissionId || !fileId) return;
+
+          const key = `${submissionId}-${fileId}`;
+
+          if (record.rawJsonParsed) {
+            savedParsedDocs[key] = {
+              ...record.rawJsonParsed,
+              loadedFromSavedAnalysis: true,
+              parsedAt: record.parsedAt || record.rawJsonParsed.savedAt || null,
+            };
+          } else {
+            const deficiencies = String(record.deficiencySummary || "")
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean)
+              .map((item) => {
+                const parts = item.split("-").map((part) => part.trim());
+
+                return {
+                  ftag: parts[0],
+                  scopeSeverity: parts[1] || null,
+                };
+              });
+
+            savedParsedDocs[key] = {
+              success: true,
+              fileName: record.fileName || "",
+              fileId,
+              submissionId,
+              facility: record.facility || "",
+              surveyType: record.surveyType || "",
+              intakeNumberFromPdf: record.intakeNumberFromPdf || null,
+              deficienciesFound: record.deficienciesFound === "Yes",
+              deficiencies,
+              ftags: deficiencies.map((d) =>
+                d.scopeSeverity ? `${d.ftag} - ${d.scopeSeverity}` : d.ftag
+              ),
+              scopeSeverity: deficiencies
+                .map((d) => d.scopeSeverity)
+                .filter(Boolean),
+              severitySummary: record.severitySummary || "",
+              loadedFromSavedAnalysis: true,
+              parsedAt: record.parsedAt || null,
+            };
+          }
+        });
+
+        setParsedDocs(savedParsedDocs);
+        setSavedAnalysisCount(analysisJson.count || 0);
+      }
     }
 
     loadData();
@@ -436,6 +498,9 @@ export default function Home() {
           <div style={styles.eventTile}>
             <p style={styles.eventTileLabel}>Events With Findings</p>
             <h2 style={styles.eventTileNumber}>{eventsWithFindings}</h2>
+            <p style={styles.savedAnalysisNote}>
+              Saved analyses loaded: {savedAnalysisCount}
+            </p>
           </div>
 
           <div style={styles.eventTileWide}>
@@ -546,7 +611,14 @@ export default function Home() {
                     return (
                       <div key={file.fileId} style={styles.documentBox}>
                         <div style={styles.documentHeader}>
-                          <p style={styles.documentName}>{documentName}</p>
+                          <div>
+                            <p style={styles.documentName}>{documentName}</p>
+                            {parsed?.loadedFromSavedAnalysis && (
+                              <p style={styles.savedBadgeText}>
+                                Saved findings loaded
+                              </p>
+                            )}
+                          </div>
                           <span style={styles.pdfBadge}>PDF</span>
                         </div>
 
@@ -574,6 +646,8 @@ export default function Home() {
                           >
                             {loadingDoc === key
                               ? "Reviewing..."
+                              : parsed
+                              ? "Refresh Findings"
                               : "View Findings"}
                           </button>
                         </div>
@@ -772,6 +846,13 @@ const styles = {
     fontSize: "40px",
     margin: "5px 0 0",
     letterSpacing: "-1px",
+  },
+
+  savedAnalysisNote: {
+    margin: "8px 0 0",
+    color: "#64748b",
+    fontSize: "13px",
+    fontWeight: "700",
   },
 
   breakdownList: {
@@ -994,6 +1075,13 @@ const styles = {
     margin: 0,
     fontWeight: "800",
     fontSize: "15px",
+  },
+
+  savedBadgeText: {
+    margin: "4px 0 0",
+    color: "#166534",
+    fontSize: "12px",
+    fontWeight: "800",
   },
 
   pdfBadge: {
