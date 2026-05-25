@@ -496,6 +496,10 @@ export default function Home() {
         <h1 style={styles.title}>Survey Dashboard</h1>
       </section>
 
+      <section style={styles.weeklySummaryUnderBanner}>
+        <WeeklySummaryByDivision weeklySummaryItems={weeklySummaryItems} />
+      </section>
+
       <section style={styles.controlPanel}>
         <div style={styles.filterGrid}>
           <div>
@@ -590,8 +594,6 @@ export default function Home() {
             </p>
           </div>
         </div>
-
-        <WeeklySummaryByDivision weeklySummaryItems={weeklySummaryItems} />
       </section>
 
       {filteredSubmissions.map((submission) => {
@@ -841,6 +843,11 @@ const styles = {
     letterSpacing: "-0.8px",
     margin: 0,
     fontWeight: "800",
+  },
+
+  weeklySummaryUnderBanner: {
+    position: "relative",
+    marginBottom: "12px",
   },
 
   controlPanel: {
