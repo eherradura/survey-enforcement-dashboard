@@ -415,6 +415,71 @@ export default function Home() {
     };
   }
 
+  function getParsedFindingsForSubmission(submissionId) {
+    return Object.entries(parsedDocs)
+      .filter(([key]) => key.startsWith(`${submissionId}-`))
+      .map(([, value]) => value)
+      .filter((parsed) => parsed && parsed.success !== false);
+  }
+
+  function getBestParsedAnalysisForSubmission(submissionId) {
+    const parsedFindings = getParsedFindingsForSubmission(submissionId);
+
+    if (parsedFindings.length === 0) return null;
+
+    const withDeficiencies = parsedFindings.find(
+      (parsed) => Array.isArray(parsed.deficiencies) && parsed.deficiencies.length > 0
+    );
+
+    if (withDeficiencies) return withDeficiencies;
+
+    const withRemedyDates = parsedFindings.find(
+      (parsed) => parsed.dpnaDateFromPdf || parsed.terminationDateFromPdf
+    );
+
+    if (withRemedyDates) return withRemedyDates;
+
+    return parsedFindings[0];
+  }
+
+  function getDisplayDpnaDate(submission) {
+    const parsed = getBestParsedAnalysisForSubmission(submission.id);
+    const parsedDate = parsed?.dpnaDateFromPdf;
+
+    if (parsedDate) return parsedDate;
+
+    const jotformDate = getAnswer(submission.answers, "68");
+
+    if (jotformDate && jotformDate !== "No information available") {
+      return jotformDate;
+    }
+
+    return "No information available";
+  }
+
+  function getDisplayTerminationDate(submission) {
+    const parsed = getBestParsedAnalysisForSubmission(submission.id);
+    const parsedDate = parsed?.terminationDateFromPdf;
+
+    if (parsedDate) return parsedDate;
+
+    const jotformDate = getAnswer(submission.answers, "69");
+
+    if (jotformDate && jotformDate !== "No information available") {
+      return jotformDate;
+    }
+
+    return "No information available";
+  }
+
+  function getApprovedCompletionDateDisplay() {
+    return "Pending information source";
+  }
+
+  function getEnforcementCycleDisplay() {
+    return "Needs review";
+  }
+
   async function viewFindings({
     fileId,
     key,
@@ -497,13 +562,6 @@ export default function Home() {
 
     return facilityMatches && yearMatches && documentMatches;
   });
-
-  function getParsedFindingsForSubmission(submissionId) {
-    return Object.entries(parsedDocs)
-      .filter(([key]) => key.startsWith(`${submissionId}-`))
-      .map(([, value]) => value)
-      .filter((parsed) => parsed && parsed.success !== false);
-  }
 
   const severitySummary = filteredSubmissions.reduce((summary, submission) => {
     const parsedFindings = getParsedFindingsForSubmission(submission.id);
@@ -726,9 +784,7 @@ export default function Home() {
                   {surveyType}
                 </div>
 
-                <p style={styles.meta}>
-                  Intake #{getAnswer(answers, "6")}
-                </p>
+                <p style={styles.meta}>Intake #{getAnswer(answers, "6")}</p>
                 <p style={styles.submissionId}>Submission ID: {submission.id}</p>
               </div>
 
@@ -748,22 +804,26 @@ export default function Home() {
 
               <div style={styles.detailItem}>
                 <span style={styles.detailLabel}>DPNA Date</span>
-                <p style={styles.detailValue}>{getAnswer(answers, "68")}</p>
+                <p style={styles.detailValue}>{getDisplayDpnaDate(submission)}</p>
               </div>
 
               <div style={styles.detailItem}>
                 <span style={styles.detailLabel}>Termination Date</span>
-                <p style={styles.detailValue}>{getAnswer(answers, "69")}</p>
+                <p style={styles.detailValue}>
+                  {getDisplayTerminationDate(submission)}
+                </p>
               </div>
 
               <div style={styles.detailItem}>
-                <span style={styles.detailLabel}>Completion Date</span>
-                <p style={styles.detailValue}>{getAnswer(answers, "70")}</p>
+                <span style={styles.detailLabel}>Approved Completion Date</span>
+                <p style={styles.pendingValue}>
+                  {getApprovedCompletionDateDisplay(submission)}
+                </p>
               </div>
 
               <div style={styles.detailItem}>
                 <span style={styles.detailLabel}>Enforcement Cycle</span>
-                <p style={styles.detailValue}>{getAnswer(answers, "71")}</p>
+                <p style={styles.reviewValue}>{getEnforcementCycleDisplay()}</p>
               </div>
 
               <div style={styles.commentsItem}>
@@ -853,6 +913,20 @@ export default function Home() {
                               {parsed.intakeNumberFromPdf || "Not found"}
                             </p>
 
+                            {parsed.dpnaDateFromPdf && (
+                              <p style={styles.findingLine}>
+                                <strong>DPNA Date From PDF:</strong>{" "}
+                                {parsed.dpnaDateFromPdf}
+                              </p>
+                            )}
+
+                            {parsed.terminationDateFromPdf && (
+                              <p style={styles.findingLine}>
+                                <strong>Termination Date From PDF:</strong>{" "}
+                                {parsed.terminationDateFromPdf}
+                              </p>
+                            )}
+
                             {parsed.deficiencies?.length > 0 ? (
                               <div style={styles.deficiencyList}>
                                 <strong>Deficiency Detail:</strong>
@@ -873,8 +947,8 @@ export default function Home() {
                             ) : parsed.coverLetterIndicatesDeficiencies ? (
                               <p style={styles.findingLine}>
                                 <strong>Deficiency:</strong> Deficiencies indicated
-                                by cover letter. Individual F-tags were not extracted
-                                from OCR.
+                                by cover letter. Individual F-tags were not
+                                extracted from the document text.
                               </p>
                             ) : (
                               <p style={styles.findingLine}>
@@ -1220,6 +1294,20 @@ const styles = {
     margin: 0,
     fontSize: "13px",
     color: "#0f172a",
+  },
+
+  pendingValue: {
+    margin: 0,
+    fontSize: "13px",
+    color: "#92400e",
+    fontWeight: "800",
+  },
+
+  reviewValue: {
+    margin: 0,
+    fontSize: "13px",
+    color: "#1e40af",
+    fontWeight: "800",
   },
 
   commentValue: {
