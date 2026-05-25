@@ -193,91 +193,24 @@ export default function Home() {
     return match?.files || [];
   }
 
-  function isJotformSubmissionPdf(file, submissionId) {
-    const name = (file.name || "").toLowerCase().trim();
+  function isPdfFile(file) {
+    const name = String(file?.name || "").toLowerCase();
+    const mimeType = String(file?.mimeType || file?.type || "").toLowerCase();
 
-    if (name === `${submissionId}.pdf`.toLowerCase()) return true;
-    if (/^\d+\.pdf$/i.test(name)) return true;
-
-    return false;
+    return (
+      name.endsWith(".pdf") ||
+      mimeType.includes("pdf") ||
+      mimeType.includes("application/pdf")
+    );
   }
 
   function getRelevantDocumentsForSubmission(submissionId) {
     const allDocuments = getAllDocumentsForSubmission(submissionId);
 
     return allDocuments.filter((file) => {
-      if (!file.name) return false;
-      if (isJotformSubmissionPdf(file, submissionId)) return false;
-
-      const name = file.name.toLowerCase();
-
-      return (
-        name.includes("2567") ||
-        name.includes("cover") ||
-        name.includes("letter") ||
-        name.includes("annual") ||
-        name.includes("survey") ||
-        name.includes("life safety") ||
-        name.includes("enforcement") ||
-        name.includes("deficiency") ||
-        name.includes("poc") ||
-        name.includes("acceptance")
-      );
+      if (!file) return false;
+      return isPdfFile(file);
     });
-  }
-
-  function getDocumentStatus(documents) {
-    if (!documents || documents.length === 0) {
-      return {
-        label: "Missing Documents",
-        value: "Missing Documents",
-        style: styles.missingBadge,
-        missingItems: ["Regulatory documents"],
-      };
-    }
-
-    const names = documents.map((file) => (file.name || "").toLowerCase());
-
-    const hasCoverLetter = names.some(
-      (name) =>
-        name.includes("cover") ||
-        name.includes("letter") ||
-        name.includes("acceptance")
-    );
-
-    const hasSurveyDocument = names.some(
-      (name) =>
-        name.includes("2567") ||
-        name.includes("annual") ||
-        name.includes("survey") ||
-        name.includes("deficiency")
-    );
-
-    const missingItems = [];
-
-    if (!hasCoverLetter) {
-      missingItems.push("Cover Letter");
-    }
-
-    if (!hasSurveyDocument) {
-      missingItems.push("CMS-2567 / Survey Document");
-    }
-
-    if (missingItems.length > 0) {
-      return {
-        label: `Missing: ${missingItems.join(", ")}`,
-        value: "Incomplete Documents",
-        style: styles.warningBadge,
-        missingItems,
-      };
-    }
-
-    return {
-      label: "Documents Complete",
-      value: "Documents Complete",
-      style: styles.uploadedBadge,
-      missingItems: [],
-    };
   }
 
   function getSurveyTypeCardStyle(surveyType) {
@@ -394,7 +327,8 @@ export default function Home() {
     if (parsedFindings.length === 0) return null;
 
     const withDeficiencies = parsedFindings.find(
-      (parsed) => Array.isArray(parsed.deficiencies) && parsed.deficiencies.length > 0
+      (parsed) =>
+        Array.isArray(parsed.deficiencies) && parsed.deficiencies.length > 0
     );
 
     if (withDeficiencies) return withDeficiencies;
@@ -772,7 +706,6 @@ export default function Home() {
       {filteredSubmissions.map((submission) => {
         const answers = submission.answers;
         const documents = getRelevantDocumentsForSubmission(submission.id);
-        const documentStatus = getDocumentStatus(documents);
         const comments = getComments(answers);
         const facility = getAnswer(answers, "3");
         const surveyType = getAnswer(answers, "4");
@@ -801,8 +734,6 @@ export default function Home() {
                 <p style={styles.meta}>Intake #{getAnswer(answers, "6")}</p>
                 <p style={styles.submissionId}>Submission ID: {submission.id}</p>
               </div>
-
-              <span style={documentStatus.style}>{documentStatus.label}</span>
             </div>
 
             <div style={styles.detailsGrid}>
@@ -851,16 +782,9 @@ export default function Home() {
                 <h3 style={styles.sectionTitle}>Documents</h3>
               </div>
 
-              {documentStatus.missingItems.length > 0 && (
-                <div style={styles.missingDocumentBox}>
-                  <strong>Missing:</strong> {documentStatus.missingItems.join(", ")}
-                </div>
-              )}
-
               {documents.length === 0 ? (
                 <p style={styles.noDocs}>
-                  No cover letter, CMS-2567, life safety survey, enforcement letter,
-                  or related regulatory document has been matched to this survey event yet.
+                  No PDF documents are currently matched to this survey event.
                 </p>
               ) : (
                 <div style={styles.documentList}>
@@ -1065,7 +989,8 @@ const styles = {
 
   filterGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(220px, 0.7fr) minmax(170px, 0.45fr) minmax(320px, 1.4fr)",
+    gridTemplateColumns:
+      "minmax(220px, 0.7fr) minmax(170px, 0.45fr) minmax(320px, 1.4fr)",
     gap: "10px",
     background: "rgba(255,255,255,0.88)",
     backdropFilter: "blur(14px)",
@@ -1303,39 +1228,6 @@ const styles = {
     marginBottom: 0,
   },
 
-  uploadedBadge: {
-    background: "#dcfce7",
-    color: "#166534",
-    padding: "6px 10px",
-    borderRadius: "999px",
-    fontWeight: "800",
-    height: "fit-content",
-    whiteSpace: "nowrap",
-    fontSize: "11px",
-  },
-
-  warningBadge: {
-    background: "#fef3c7",
-    color: "#92400e",
-    padding: "6px 10px",
-    borderRadius: "999px",
-    fontWeight: "800",
-    height: "fit-content",
-    whiteSpace: "nowrap",
-    fontSize: "11px",
-  },
-
-  missingBadge: {
-    background: "#fee2e2",
-    color: "#991b1b",
-    padding: "6px 10px",
-    borderRadius: "999px",
-    fontWeight: "800",
-    height: "fit-content",
-    whiteSpace: "nowrap",
-    fontSize: "11px",
-  },
-
   detailsGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
@@ -1419,16 +1311,6 @@ const styles = {
     color: "#64748b",
     lineHeight: 1.35,
     margin: 0,
-    fontSize: "12px",
-  },
-
-  missingDocumentBox: {
-    background: "#fff7ed",
-    color: "#9a3412",
-    border: "1px solid #fed7aa",
-    borderRadius: "11px",
-    padding: "8px 10px",
-    marginBottom: "8px",
     fontSize: "12px",
   },
 
