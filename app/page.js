@@ -5,8 +5,26 @@ import WeeklySummaryByDivision from "../components/WeeklySummaryByDivision";
 
 export default function Home() {
   const [dashboardView, setDashboardView] = useState("weekly");
+
+  const [weeklyDateRange, setWeeklyDateRange] = useState(() => {
+    const today = new Date();
+    const start = new Date();
+    start.setDate(today.getDate() - 6);
+
+    const formatInputDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    return {
+      start: formatInputDate(start),
+      end: formatInputDate(today),
+    };
+  });
+
   const [submissions, setSubmissions] = useState([]);
-  const [weeklyDays, setWeeklyDays] = useState(7);
   const [driveData, setDriveData] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState("All Facilities");
   const [selectedYear, setSelectedYear] = useState("All Years");
@@ -153,19 +171,18 @@ export default function Home() {
     return `${month}-${day}-${year}`;
   }
 
-  function isDateWithinPastDays(value, days) {
+  function isDateWithinSelectedRange(value, startValue, endValue) {
     const parsed = parseFacilityDate(value);
 
     if (!parsed) return false;
 
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
+    const start = startValue ? new Date(`${startValue}T00:00:00`) : null;
+    const end = endValue ? new Date(`${endValue}T23:59:59`) : null;
 
-    const start = new Date();
-    start.setDate(today.getDate() - (days - 1));
-    start.setHours(0, 0, 0, 0);
+    if (start && parsed < start) return false;
+    if (end && parsed > end) return false;
 
-    return parsed >= start && parsed <= today;
+    return true;
   }
 
   function getYearFromSubmission(submission) {
@@ -617,7 +634,11 @@ export default function Home() {
         };
       })
       .filter((item) => {
-        const withinSelectedDays = isDateWithinPastDays(item.rawDate, weeklyDays);
+        const withinSelectedDateRange = isDateWithinSelectedRange(
+          item.rawDate,
+          weeklyDateRange.start,
+          weeklyDateRange.end
+        );
 
         const facilityMatches =
           selectedFacility === "All Facilities" ||
@@ -627,7 +648,7 @@ export default function Home() {
           selectedSurveyTypes.length === 0 ||
           selectedSurveyTypes.includes(item.surveyType);
 
-       return withinSelectedDays && facilityMatches && surveyTypeMatches;
+        return withinSelectedDateRange && facilityMatches && surveyTypeMatches;
       })
       .sort((a, b) => {
         const dateA = parseFacilityDate(a.rawDate);
@@ -639,7 +660,7 @@ export default function Home() {
 
         return dateB - dateA;
       });
-}, [submissions, selectedFacility, selectedSurveyTypes, weeklyDays]);
+  }, [submissions, selectedFacility, selectedSurveyTypes, weeklyDateRange]);
 
   return (
     <main style={styles.page}>
@@ -652,16 +673,16 @@ export default function Home() {
       </section>
 
       <section style={styles.weeklySummaryUnderBanner}>
-       <WeeklySummaryByDivision
-  weeklySummaryItems={weeklySummaryItems}
-  submissions={submissions}
-  parsedDocs={parsedDocs}
-  getAnswer={getAnswer}
-  dashboardView={dashboardView}
-  onDashboardViewChange={setDashboardView}
-  weeklyDays={weeklyDays}
-  onWeeklyDaysChange={setWeeklyDays}
-/>
+        <WeeklySummaryByDivision
+          weeklySummaryItems={weeklySummaryItems}
+          submissions={submissions}
+          parsedDocs={parsedDocs}
+          getAnswer={getAnswer}
+          dashboardView={dashboardView}
+          onDashboardViewChange={setDashboardView}
+          weeklyDateRange={weeklyDateRange}
+          onWeeklyDateRangeChange={setWeeklyDateRange}
+        />
       </section>
 
       {dashboardView === "weekly" && (
@@ -907,16 +928,16 @@ export default function Home() {
                             </div>
 
                             <div style={styles.buttonRow}>
-                             <a
-  href={`/api/file-view?fileId=${encodeURIComponent(
-    file.fileId
-  )}&fileName=${encodeURIComponent(documentName)}`}
-  target="_blank"
-  rel="noreferrer"
-  style={styles.documentLink}
->
-  View File
-</a>
+                              <a
+                                href={`/api/file-view?fileId=${encodeURIComponent(
+                                  file.fileId
+                                )}&fileName=${encodeURIComponent(documentName)}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={styles.documentLink}
+                              >
+                                View File
+                              </a>
 
                               <button
                                 onClick={() =>
