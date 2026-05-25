@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import WeeklySummaryByDivision from "../components/WeeklySummaryByDivision";
 
 export default function Home() {
+  const [dashboardView, setDashboardView] = useState("weekly");
   const [submissions, setSubmissions] = useState([]);
   const [driveData, setDriveData] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState("All Facilities");
@@ -229,7 +230,6 @@ export default function Home() {
     if (!name || !cleanSubmissionId) return false;
 
     if (name === `${cleanSubmissionId}.pdf`) return true;
-
     if (/^\d+\.pdf$/i.test(name)) return true;
 
     return false;
@@ -394,16 +394,12 @@ export default function Home() {
   function getDisplayDpnaDate(submission) {
     const parsed = getBestParsedAnalysisForSubmission(submission.id);
 
-    if (parsed?.noDeficiencyLetter) {
-      return "Not applicable";
-    }
+    if (parsed?.noDeficiencyLetter) return "Not applicable";
 
     const parsedDate = parsed?.dpnaDateFromPdf;
-
     if (parsedDate) return parsedDate;
 
     const jotformDate = getAnswer(submission.answers, "68");
-
     if (jotformDate && jotformDate !== "No information available") {
       return jotformDate;
     }
@@ -414,16 +410,12 @@ export default function Home() {
   function getDisplayTerminationDate(submission) {
     const parsed = getBestParsedAnalysisForSubmission(submission.id);
 
-    if (parsed?.noDeficiencyLetter) {
-      return "Not applicable";
-    }
+    if (parsed?.noDeficiencyLetter) return "Not applicable";
 
     const parsedDate = parsed?.terminationDateFromPdf;
-
     if (parsedDate) return parsedDate;
 
     const jotformDate = getAnswer(submission.answers, "69");
-
     if (jotformDate && jotformDate !== "No information available") {
       return jotformDate;
     }
@@ -434,9 +426,7 @@ export default function Home() {
   function getApprovedCompletionDateDisplay(submission) {
     const parsed = getBestParsedAnalysisForSubmission(submission.id);
 
-    if (parsed?.noDeficiencyLetter) {
-      return "Not applicable";
-    }
+    if (parsed?.noDeficiencyLetter) return "Not applicable";
 
     return "Pending information source";
   }
@@ -444,9 +434,7 @@ export default function Home() {
   function getEnforcementCycleDisplay(submission) {
     const parsed = getBestParsedAnalysisForSubmission(submission.id);
 
-    if (parsed?.noDeficiencyLetter) {
-      return "None open";
-    }
+    if (parsed?.noDeficiencyLetter) return "None open";
 
     return "Needs review";
   }
@@ -668,339 +656,358 @@ export default function Home() {
           submissions={submissions}
           parsedDocs={parsedDocs}
           getAnswer={getAnswer}
+          dashboardView={dashboardView}
+          onDashboardViewChange={setDashboardView}
         />
       </section>
 
-      <section style={styles.controlPanel}>
-        <div style={styles.filterGrid}>
-          <div>
-            <label style={styles.label}>Facility</label>
-            <select
-              value={selectedFacility}
-              onChange={(e) => setSelectedFacility(e.target.value)}
-              style={styles.select}
-            >
-              {facilities.map((facility) => (
-                <option key={facility} value={facility}>
-                  {facility}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={styles.label}>Year</label>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              style={styles.select}
-            >
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={styles.surveyTypeFilterBox}>
-            <div style={styles.surveyTypeHeader}>
-              <label style={styles.label}>Survey Type</label>
-
-              {selectedSurveyTypes.length > 0 && (
-                <button
-                  type="button"
-                  onClick={clearSurveyTypeFilter}
-                  style={styles.clearButton}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-
-            <div style={styles.checkboxWrap}>
-              {surveyTypes.length > 0 ? (
-                surveyTypes.map((type) => (
-                  <label key={type} style={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={selectedSurveyTypes.includes(type)}
-                      onChange={() => toggleSurveyType(type)}
-                      style={styles.checkboxInput}
-                    />
-                    <span>{type}</span>
-                  </label>
-                ))
-              ) : (
-                <span style={styles.noSurveyTypes}>No survey types found</span>
-              )}
-            </div>
-
-            <p style={styles.filterHint}>
-              {selectedSurveyTypes.length === 0
-                ? "Showing all survey types"
-                : `Showing ${selectedSurveyTypes.length} selected survey type${
-                    selectedSurveyTypes.length === 1 ? "" : "s"
-                  }`}
-            </p>
-          </div>
-        </div>
-
-        <div style={styles.tileGrid}>
-          <div style={styles.eventTile}>
-            <p style={styles.eventTileLabel}>Survey Events</p>
-            <h2 style={styles.eventTileNumber}>{filteredSubmissions.length}</h2>
-
-            <div style={styles.breakdownList}>
-              {surveyTypeBreakdownItems.length > 0 ? (
-                surveyTypeBreakdownItems.map((item) => (
-                  <div key={item.type} style={styles.breakdownItem}>
-                    <span>{item.type}</span>
-                    <strong>{item.count}</strong>
-                  </div>
-                ))
-              ) : (
-                <div style={styles.breakdownItem}>
-                  <span>No survey activity</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={styles.severityTile}>
-            <p style={styles.eventTileLabel}>Severity Summary</p>
-
-            <div style={styles.severityList}>
-              {severitySummaryItems.length > 0 ? (
-                severitySummaryItems.map((item) => (
-                  <div key={item.severity} style={styles.severityItem}>
-                    <span>{item.severity}</span>
-                    <strong>
-                      {item.count} {item.count === 1 ? "tag" : "tags"}
-                    </strong>
-                  </div>
-                ))
-              ) : (
-                <div style={styles.severityEmpty}>
-                  No findings reviewed yet
-                </div>
-              )}
-            </div>
-
-            <p style={styles.savedAnalysisNote}>
-              Saved analyses: {savedAnalysisCount}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {filteredSubmissions.map((submission) => {
-        const answers = submission.answers;
-        const documents = getRelevantDocumentsForSubmission(submission.id);
-        const comments = getComments(answers);
-        const facility = getAnswer(answers, "3");
-        const surveyType = getAnswer(answers, "4");
-
-        return (
-          <section
-            key={submission.id}
-            style={{
-              ...styles.card,
-              ...getSurveyTypeCardStyle(surveyType),
-            }}
-          >
-            <div style={styles.cardTop}>
+      {dashboardView === "weekly" && (
+        <>
+          <section style={styles.controlPanel}>
+            <div style={styles.filterGrid}>
               <div>
-                <h2 style={styles.facilityName}>{facility}</h2>
-
-                <div
-                  style={{
-                    ...styles.surveyTypeBadge,
-                    ...getSurveyTypeBadgeStyle(surveyType),
-                  }}
+                <label style={styles.label}>Facility</label>
+                <select
+                  value={selectedFacility}
+                  onChange={(e) => setSelectedFacility(e.target.value)}
+                  style={styles.select}
                 >
-                  {surveyType}
+                  {facilities.map((facility) => (
+                    <option key={facility} value={facility}>
+                      {facility}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={styles.label}>Year</label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  style={styles.select}
+                >
+                  {years.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={styles.surveyTypeFilterBox}>
+                <div style={styles.surveyTypeHeader}>
+                  <label style={styles.label}>Survey Type</label>
+
+                  {selectedSurveyTypes.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearSurveyTypeFilter}
+                      style={styles.clearButton}
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
 
-                <p style={styles.meta}>Intake #{getAnswer(answers, "6")}</p>
-                <p style={styles.submissionId}>Submission ID: {submission.id}</p>
+                <div style={styles.checkboxWrap}>
+                  {surveyTypes.length > 0 ? (
+                    surveyTypes.map((type) => (
+                      <label key={type} style={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={selectedSurveyTypes.includes(type)}
+                          onChange={() => toggleSurveyType(type)}
+                          style={styles.checkboxInput}
+                        />
+                        <span>{type}</span>
+                      </label>
+                    ))
+                  ) : (
+                    <span style={styles.noSurveyTypes}>
+                      No survey types found
+                    </span>
+                  )}
+                </div>
+
+                <p style={styles.filterHint}>
+                  {selectedSurveyTypes.length === 0
+                    ? "Showing all survey types"
+                    : `Showing ${selectedSurveyTypes.length} selected survey type${
+                        selectedSurveyTypes.length === 1 ? "" : "s"
+                      }`}
+                </p>
               </div>
             </div>
 
-            <div style={styles.detailsGrid}>
-              <div style={styles.detailItem}>
-                <span style={styles.detailLabel}>Survey Entrance</span>
-                <p style={styles.detailValue}>{getAnswer(answers, "5")}</p>
-              </div>
+            <div style={styles.tileGrid}>
+              <div style={styles.eventTile}>
+                <p style={styles.eventTileLabel}>Survey Events</p>
+                <h2 style={styles.eventTileNumber}>
+                  {filteredSubmissions.length}
+                </h2>
 
-              <div style={styles.detailItem}>
-                <span style={styles.detailLabel}>Last Day of Survey</span>
-                <p style={styles.detailValue}>{getAnswer(answers, "67")}</p>
-              </div>
-
-              <div style={styles.detailItem}>
-                <span style={styles.detailLabel}>DPNA Date</span>
-                <p style={styles.detailValue}>{getDisplayDpnaDate(submission)}</p>
-              </div>
-
-              <div style={styles.detailItem}>
-                <span style={styles.detailLabel}>Termination Date</span>
-                <p style={styles.detailValue}>
-                  {getDisplayTerminationDate(submission)}
-                </p>
-              </div>
-
-              <div style={styles.detailItem}>
-                <span style={styles.detailLabel}>Approved Completion Date</span>
-                <p style={styles.pendingValue}>
-                  {getApprovedCompletionDateDisplay(submission)}
-                </p>
-              </div>
-
-              <div style={styles.detailItem}>
-                <span style={styles.detailLabel}>Enforcement Cycle</span>
-                <p style={styles.reviewValue}>
-                  {getEnforcementCycleDisplay(submission)}
-                </p>
-              </div>
-
-              <div style={styles.commentsItem}>
-                <span style={styles.detailLabel}>Comments</span>
-                <p style={styles.commentValue}>{comments}</p>
-              </div>
-            </div>
-
-            <div style={styles.documentsSection}>
-              <div style={styles.sectionHeader}>
-                <h3 style={styles.sectionTitle}>Documents</h3>
-              </div>
-
-              {documents.length === 0 ? (
-                <p style={styles.noDocs}>
-                  No PDF documents are currently matched to this survey event.
-                </p>
-              ) : (
-                <div style={styles.documentList}>
-                  {documents.map((file) => {
-                    const key = `${submission.id}-${file.fileId}`;
-                    const parsed = parsedDocs[key];
-                    const documentName = file.name || "Unnamed PDF";
-
-                    return (
-                      <div key={file.fileId} style={styles.documentBox}>
-                        <div style={styles.documentHeader}>
-                          <div>
-                            <p style={styles.documentName}>{documentName}</p>
-                            {parsed?.loadedFromSavedAnalysis && (
-                              <p style={styles.savedBadgeText}>
-                                Saved findings loaded
-                              </p>
-                            )}
-                          </div>
-                          <span style={styles.pdfBadge}>PDF</span>
-                        </div>
-
-                        <div style={styles.buttonRow}>
-                          <a
-                            href={file.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={styles.documentLink}
-                          >
-                            View File
-                          </a>
-
-                          <button
-                            onClick={() =>
-                              viewFindings({
-                                fileId: file.fileId,
-                                key,
-                                submissionId: submission.id,
-                                facility,
-                                surveyType,
-                              })
-                            }
-                            style={styles.parseButton}
-                          >
-                            {loadingDoc === key
-                              ? "Reviewing..."
-                              : parsed
-                              ? "Refresh Findings"
-                              : "View Findings"}
-                          </button>
-                        </div>
-
-                        {parsed && (
-                          <div style={styles.parseResult}>
-                            {parsed.success === false && (
-                              <p style={styles.errorText}>
-                                <strong>Findings Error:</strong>{" "}
-                                {parsed.error || "Unknown error"}
-                              </p>
-                            )}
-
-                            <p style={styles.findingLine}>
-                              <strong>Intake Number From PDF:</strong>{" "}
-                              {parsed.intakeNumberFromPdf || "Not found"}
-                            </p>
-
-                            {parsed.dpnaDateFromPdf && (
-                              <p style={styles.findingLine}>
-                                <strong>DPNA Date From PDF:</strong>{" "}
-                                {parsed.dpnaDateFromPdf}
-                              </p>
-                            )}
-
-                            {parsed.terminationDateFromPdf && (
-                              <p style={styles.findingLine}>
-                                <strong>Termination Date From PDF:</strong>{" "}
-                                {parsed.terminationDateFromPdf}
-                              </p>
-                            )}
-
-                            {parsed.noDeficiencyLetter ? (
-                              <p style={styles.findingLine}>
-                                <strong>Deficiency:</strong> No deficiency
-                              </p>
-                            ) : parsed.deficiencies?.length > 0 ? (
-                              <div style={styles.deficiencyList}>
-                                <strong>Deficiency Detail:</strong>
-                                <div style={styles.pillWrap}>
-                                  {parsed.deficiencies.map((def, defIndex) => (
-                                    <div
-                                      key={defIndex}
-                                      style={styles.deficiencyPill}
-                                    >
-                                      {def.ftag}
-                                      {def.scopeSeverity
-                                        ? ` - ${def.scopeSeverity}`
-                                        : " - Scope/Severity not found"}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : parsed.coverLetterIndicatesDeficiencies ? (
-                              <p style={styles.findingLine}>
-                                <strong>Deficiency:</strong> Deficiencies indicated
-                                by cover letter. Individual F-tags were not
-                                extracted from the document text.
-                              </p>
-                            ) : (
-                              <p style={styles.findingLine}>
-                                <strong>Deficiency:</strong> No deficiency
-                              </p>
-                            )}
-                          </div>
-                        )}
+                <div style={styles.breakdownList}>
+                  {surveyTypeBreakdownItems.length > 0 ? (
+                    surveyTypeBreakdownItems.map((item) => (
+                      <div key={item.type} style={styles.breakdownItem}>
+                        <span>{item.type}</span>
+                        <strong>{item.count}</strong>
                       </div>
-                    );
-                  })}
+                    ))
+                  ) : (
+                    <div style={styles.breakdownItem}>
+                      <span>No survey activity</span>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+
+              <div style={styles.severityTile}>
+                <p style={styles.eventTileLabel}>Severity Summary</p>
+
+                <div style={styles.severityList}>
+                  {severitySummaryItems.length > 0 ? (
+                    severitySummaryItems.map((item) => (
+                      <div key={item.severity} style={styles.severityItem}>
+                        <span>{item.severity}</span>
+                        <strong>
+                          {item.count} {item.count === 1 ? "tag" : "tags"}
+                        </strong>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={styles.severityEmpty}>
+                      No findings reviewed yet
+                    </div>
+                  )}
+                </div>
+
+                <p style={styles.savedAnalysisNote}>
+                  Saved analyses: {savedAnalysisCount}
+                </p>
+              </div>
             </div>
           </section>
-        );
-      })}
+
+          {filteredSubmissions.map((submission) => {
+            const answers = submission.answers;
+            const documents = getRelevantDocumentsForSubmission(submission.id);
+            const comments = getComments(answers);
+            const facility = getAnswer(answers, "3");
+            const surveyType = getAnswer(answers, "4");
+
+            return (
+              <section
+                key={submission.id}
+                style={{
+                  ...styles.card,
+                  ...getSurveyTypeCardStyle(surveyType),
+                }}
+              >
+                <div style={styles.cardTop}>
+                  <div>
+                    <h2 style={styles.facilityName}>{facility}</h2>
+
+                    <div
+                      style={{
+                        ...styles.surveyTypeBadge,
+                        ...getSurveyTypeBadgeStyle(surveyType),
+                      }}
+                    >
+                      {surveyType}
+                    </div>
+
+                    <p style={styles.meta}>Intake #{getAnswer(answers, "6")}</p>
+                    <p style={styles.submissionId}>
+                      Submission ID: {submission.id}
+                    </p>
+                  </div>
+                </div>
+
+                <div style={styles.detailsGrid}>
+                  <div style={styles.detailItem}>
+                    <span style={styles.detailLabel}>Survey Entrance</span>
+                    <p style={styles.detailValue}>{getAnswer(answers, "5")}</p>
+                  </div>
+
+                  <div style={styles.detailItem}>
+                    <span style={styles.detailLabel}>Last Day of Survey</span>
+                    <p style={styles.detailValue}>{getAnswer(answers, "67")}</p>
+                  </div>
+
+                  <div style={styles.detailItem}>
+                    <span style={styles.detailLabel}>DPNA Date</span>
+                    <p style={styles.detailValue}>
+                      {getDisplayDpnaDate(submission)}
+                    </p>
+                  </div>
+
+                  <div style={styles.detailItem}>
+                    <span style={styles.detailLabel}>Termination Date</span>
+                    <p style={styles.detailValue}>
+                      {getDisplayTerminationDate(submission)}
+                    </p>
+                  </div>
+
+                  <div style={styles.detailItem}>
+                    <span style={styles.detailLabel}>
+                      Approved Completion Date
+                    </span>
+                    <p style={styles.pendingValue}>
+                      {getApprovedCompletionDateDisplay(submission)}
+                    </p>
+                  </div>
+
+                  <div style={styles.detailItem}>
+                    <span style={styles.detailLabel}>Enforcement Cycle</span>
+                    <p style={styles.reviewValue}>
+                      {getEnforcementCycleDisplay(submission)}
+                    </p>
+                  </div>
+
+                  <div style={styles.commentsItem}>
+                    <span style={styles.detailLabel}>Comments</span>
+                    <p style={styles.commentValue}>{comments}</p>
+                  </div>
+                </div>
+
+                <div style={styles.documentsSection}>
+                  <div style={styles.sectionHeader}>
+                    <h3 style={styles.sectionTitle}>Documents</h3>
+                  </div>
+
+                  {documents.length === 0 ? (
+                    <p style={styles.noDocs}>
+                      No PDF documents are currently matched to this survey
+                      event.
+                    </p>
+                  ) : (
+                    <div style={styles.documentList}>
+                      {documents.map((file) => {
+                        const key = `${submission.id}-${file.fileId}`;
+                        const parsed = parsedDocs[key];
+                        const documentName = file.name || "Unnamed PDF";
+
+                        return (
+                          <div key={file.fileId} style={styles.documentBox}>
+                            <div style={styles.documentHeader}>
+                              <div>
+                                <p style={styles.documentName}>{documentName}</p>
+                                {parsed?.loadedFromSavedAnalysis && (
+                                  <p style={styles.savedBadgeText}>
+                                    Saved findings loaded
+                                  </p>
+                                )}
+                              </div>
+                              <span style={styles.pdfBadge}>PDF</span>
+                            </div>
+
+                            <div style={styles.buttonRow}>
+                              <a
+                                href={file.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={styles.documentLink}
+                              >
+                                View File
+                              </a>
+
+                              <button
+                                onClick={() =>
+                                  viewFindings({
+                                    fileId: file.fileId,
+                                    key,
+                                    submissionId: submission.id,
+                                    facility,
+                                    surveyType,
+                                  })
+                                }
+                                style={styles.parseButton}
+                              >
+                                {loadingDoc === key
+                                  ? "Reviewing..."
+                                  : parsed
+                                  ? "Refresh Findings"
+                                  : "View Findings"}
+                              </button>
+                            </div>
+
+                            {parsed && (
+                              <div style={styles.parseResult}>
+                                {parsed.success === false && (
+                                  <p style={styles.errorText}>
+                                    <strong>Findings Error:</strong>{" "}
+                                    {parsed.error || "Unknown error"}
+                                  </p>
+                                )}
+
+                                <p style={styles.findingLine}>
+                                  <strong>Intake Number From PDF:</strong>{" "}
+                                  {parsed.intakeNumberFromPdf || "Not found"}
+                                </p>
+
+                                {parsed.dpnaDateFromPdf && (
+                                  <p style={styles.findingLine}>
+                                    <strong>DPNA Date From PDF:</strong>{" "}
+                                    {parsed.dpnaDateFromPdf}
+                                  </p>
+                                )}
+
+                                {parsed.terminationDateFromPdf && (
+                                  <p style={styles.findingLine}>
+                                    <strong>Termination Date From PDF:</strong>{" "}
+                                    {parsed.terminationDateFromPdf}
+                                  </p>
+                                )}
+
+                                {parsed.noDeficiencyLetter ? (
+                                  <p style={styles.findingLine}>
+                                    <strong>Deficiency:</strong> No deficiency
+                                  </p>
+                                ) : parsed.deficiencies?.length > 0 ? (
+                                  <div style={styles.deficiencyList}>
+                                    <strong>Deficiency Detail:</strong>
+                                    <div style={styles.pillWrap}>
+                                      {parsed.deficiencies.map(
+                                        (def, defIndex) => (
+                                          <div
+                                            key={defIndex}
+                                            style={styles.deficiencyPill}
+                                          >
+                                            {def.ftag}
+                                            {def.scopeSeverity
+                                              ? ` - ${def.scopeSeverity}`
+                                              : " - Scope/Severity not found"}
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : parsed.coverLetterIndicatesDeficiencies ? (
+                                  <p style={styles.findingLine}>
+                                    <strong>Deficiency:</strong> Deficiencies
+                                    indicated by cover letter. Individual F-tags
+                                    were not extracted from the document text.
+                                  </p>
+                                ) : (
+                                  <p style={styles.findingLine}>
+                                    <strong>Deficiency:</strong> No deficiency
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </section>
+            );
+          })}
+        </>
+      )}
     </main>
   );
 }
