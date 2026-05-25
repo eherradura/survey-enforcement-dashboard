@@ -635,7 +635,12 @@ export default function Home() {
       </section>
 
       <section style={styles.weeklySummaryUnderBanner}>
-        <WeeklySummaryByDivision weeklySummaryItems={weeklySummaryItems} />
+        <WeeklySummaryByDivision
+  weeklySummaryItems={weeklySummaryItems}
+  submissions={submissions}
+  parsedDocs={parsedDocs}
+  getAnswer={getAnswer}
+/>
       </section>
 
       <section style={styles.controlPanel}>
