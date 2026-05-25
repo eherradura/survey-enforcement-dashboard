@@ -1,10 +1,10 @@
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const PARSER_VERSION = "direct-pdf-v2-compact";
+const PARSER_VERSION = "direct-pdf-v3-lib-import";
 
 async function loadPdfParse() {
-  const pdfParseModule = await import("pdf-parse");
+  const pdfParseModule = await import("pdf-parse/lib/pdf-parse.js");
   return pdfParseModule.default || pdfParseModule;
 }
 
