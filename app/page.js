@@ -13,6 +13,8 @@ export default function Home() {
   const [parsedDocs, setParsedDocs] = useState({});
   const [loadingDoc, setLoadingDoc] = useState(null);
   const [savedAnalysisCount, setSavedAnalysisCount] = useState(0);
+  const [analyzingMissing, setAnalyzingMissing] = useState(false);
+  const [analyzeResult, setAnalyzeResult] = useState(null);
 
   useEffect(() => {
     async function loadData() {
@@ -24,70 +26,74 @@ export default function Home() {
       const driveJson = await driveRes.json();
       setDriveData(driveJson.submissions || []);
 
-      const analysisRes = await fetch("/api/saved-analysis");
-      const analysisJson = await analysisRes.json();
-
-      if (analysisJson.success && Array.isArray(analysisJson.analysis)) {
-        const savedParsedDocs = {};
-
-        analysisJson.analysis.forEach((record) => {
-          const submissionId = String(record.submissionId || "");
-          const fileId = String(record.fileId || "");
-
-          if (!submissionId || !fileId) return;
-
-          const key = `${submissionId}-${fileId}`;
-
-          if (record.rawJsonParsed) {
-            savedParsedDocs[key] = {
-              ...record.rawJsonParsed,
-              loadedFromSavedAnalysis: true,
-              parsedAt: record.parsedAt || record.rawJsonParsed.savedAt || null,
-            };
-          } else {
-            const deficiencies = String(record.deficiencySummary || "")
-              .split(",")
-              .map((item) => item.trim())
-              .filter(Boolean)
-              .map((item) => {
-                const parts = item.split("-").map((part) => part.trim());
-
-                return {
-                  ftag: parts[0],
-                  scopeSeverity: parts[1] || null,
-                };
-              });
-
-            savedParsedDocs[key] = {
-              success: true,
-              fileName: record.fileName || "",
-              fileId,
-              submissionId,
-              facility: record.facility || "",
-              surveyType: record.surveyType || "",
-              intakeNumberFromPdf: record.intakeNumberFromPdf || null,
-              deficienciesFound: record.deficienciesFound === "Yes",
-              deficiencies,
-              ftags: deficiencies.map((d) =>
-                d.scopeSeverity ? `${d.ftag} - ${d.scopeSeverity}` : d.ftag
-              ),
-              scopeSeverity: deficiencies
-                .map((d) => d.scopeSeverity)
-                .filter(Boolean),
-              severitySummary: record.severitySummary || "",
-              loadedFromSavedAnalysis: true,
-              parsedAt: record.parsedAt || null,
-            };
-          }
-        });
-
-        setParsedDocs(savedParsedDocs);
-        setSavedAnalysisCount(analysisJson.count || 0);
-      }
+      await loadSavedAnalysis();
     }
 
     loadData();
   }, []);
+
+  async function loadSavedAnalysis() {
+    const analysisRes = await fetch("/api/saved-analysis");
+    const analysisJson = await analysisRes.json();
+
+    if (analysisJson.success && Array.isArray(analysisJson.analysis)) {
+      const savedParsedDocs = {};
+
+      analysisJson.analysis.forEach((record) => {
+        const submissionId = String(record.submissionId || "");
+        const fileId = String(record.fileId || "");
+
+        if (!submissionId || !fileId) return;
+
+        const key = `${submissionId}-${fileId}`;
+
+        if (record.rawJsonParsed) {
+          savedParsedDocs[key] = {
+            ...record.rawJsonParsed,
+            loadedFromSavedAnalysis: true,
+            parsedAt: record.parsedAt || record.rawJsonParsed.savedAt || null,
+          };
+        } else {
+          const deficiencies = String(record.deficiencySummary || "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .map((item) => {
+              const parts = item.split("-").map((part) => part.trim());
+
+              return {
+                ftag: parts[0],
+                scopeSeverity: parts[1] || null,
+              };
+            });
+
+          savedParsedDocs[key] = {
+            success: true,
+            fileName: record.fileName || "",
+            fileId,
+            submissionId,
+            facility: record.facility || "",
+            surveyType: record.surveyType || "",
+            intakeNumberFromPdf: record.intakeNumberFromPdf || null,
+            deficienciesFound: record.deficienciesFound === "Yes",
+            deficiencies,
+            ftags: deficiencies.map((d) =>
+              d.scopeSeverity ? `${d.ftag} - ${d.scopeSeverity}` : d.ftag
+            ),
+            scopeSeverity: deficiencies
+              .map((d) => d.scopeSeverity)
+              .filter(Boolean),
+            severitySummary: record.severitySummary || "",
+            loadedFromSavedAnalysis: true,
+            parsedAt: record.parsedAt || null,
+          };
+        }
+      });
+
+      setParsedDocs(savedParsedDocs);
+      setSavedAnalysisCount(analysisJson.count || 0);
+    }
+  }
 
   function getAnswer(answers, id) {
     const field = answers?.[id];
@@ -300,6 +306,8 @@ export default function Home() {
         ...prev,
         [key]: data,
       }));
+
+      await loadSavedAnalysis();
     } catch (error) {
       setParsedDocs((prev) => ({
         ...prev,
@@ -311,6 +319,37 @@ export default function Home() {
     }
 
     setLoadingDoc(null);
+  }
+
+  async function analyzeMissingDocuments() {
+    setAnalyzingMissing(true);
+    setAnalyzeResult(null);
+
+    try {
+      const res = await fetch("/api/analyze-missing", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          limit: 5,
+          origin: window.location.origin,
+        }),
+      });
+
+      const data = await res.json();
+
+      setAnalyzeResult(data);
+
+      await loadSavedAnalysis();
+    } catch (error) {
+      setAnalyzeResult({
+        success: false,
+        error: error.message,
+      });
+    }
+
+    setAnalyzingMissing(false);
   }
 
   const facilities = useMemo(() => {
@@ -473,6 +512,52 @@ export default function Home() {
             </select>
           </div>
         </div>
+
+        <div style={styles.actionPanel}>
+          <div>
+            <p style={styles.actionTitle}>Batch Analysis</p>
+            <p style={styles.actionText}>
+              Analyze missing regulatory documents in batches of 5 and save the
+              findings to Google Sheets.
+            </p>
+          </div>
+
+          <button
+            onClick={analyzeMissingDocuments}
+            disabled={analyzingMissing}
+            style={{
+              ...styles.analyzeButton,
+              opacity: analyzingMissing ? 0.65 : 1,
+              cursor: analyzingMissing ? "not-allowed" : "pointer",
+            }}
+          >
+            {analyzingMissing ? "Analyzing..." : "Analyze Missing Documents"}
+          </button>
+        </div>
+
+        {analyzeResult && (
+          <div
+            style={
+              analyzeResult.success
+                ? styles.analyzeResultBox
+                : styles.analyzeErrorBox
+            }
+          >
+            {analyzeResult.success ? (
+              <>
+                <strong>Batch complete.</strong> Processed{" "}
+                {analyzeResult.processedCount || 0} document(s). Failed{" "}
+                {analyzeResult.failedCount || 0}. Remaining after run:{" "}
+                {analyzeResult.remainingAfterRun ?? "Unknown"}.
+              </>
+            ) : (
+              <>
+                <strong>Batch failed:</strong>{" "}
+                {analyzeResult.error || "Unknown error"}
+              </>
+            )}
+          </div>
+        )}
 
         <div style={styles.tileGrid}>
           <div style={styles.eventTile}>
@@ -807,6 +892,61 @@ const styles = {
     fontSize: "14px",
     minWidth: "250px",
     outline: "none",
+  },
+
+  actionPanel: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "16px",
+    background: "rgba(255,255,255,0.9)",
+    border: "1px solid rgba(226, 232, 240, 0.95)",
+    padding: "16px 18px",
+    borderRadius: "22px",
+    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.07)",
+  },
+
+  actionTitle: {
+    margin: 0,
+    color: "#0f172a",
+    fontWeight: "900",
+    fontSize: "15px",
+  },
+
+  actionText: {
+    margin: "4px 0 0",
+    color: "#64748b",
+    fontSize: "13px",
+    lineHeight: 1.4,
+  },
+
+  analyzeButton: {
+    background: "#0f172a",
+    color: "white",
+    border: "none",
+    padding: "11px 16px",
+    borderRadius: "13px",
+    fontWeight: "900",
+    fontSize: "14px",
+    whiteSpace: "nowrap",
+  },
+
+  analyzeResultBox: {
+    background: "#ecfdf5",
+    color: "#166534",
+    border: "1px solid #bbf7d0",
+    padding: "13px 15px",
+    borderRadius: "16px",
+    fontSize: "14px",
+  },
+
+  analyzeErrorBox: {
+    background: "#fef2f2",
+    color: "#991b1b",
+    border: "1px solid #fecaca",
+    padding: "13px 15px",
+    borderRadius: "16px",
+    fontSize: "14px",
   },
 
   tileGrid: {
