@@ -333,7 +333,7 @@ function calculateSubmissionPoints(parsedFindings) {
   };
 }
 
-function ConsultantAvatar({ consultant, size = 40 }) {
+function ConsultantAvatar({ consultant, size = 76 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const photo = CONSULTANT_PHOTOS[consultant];
 
@@ -349,9 +349,10 @@ function ConsultantAvatar({ consultant, size = 40 }) {
           justifyContent: "center",
           background: "#dbeafe",
           color: "#1e40af",
-          fontWeight: "900",
+          fontWeight: "950",
           flexShrink: 0,
-          fontSize: size <= 42 ? "12px" : "14px",
+          fontSize: size <= 48 ? "14px" : "20px",
+          margin: "0 auto",
         }}
       >
         {String(consultant || "?")
@@ -372,10 +373,12 @@ function ConsultantAvatar({ consultant, size = 40 }) {
         height: size,
         borderRadius: "999px",
         objectFit: "cover",
-        border: "2px solid white",
-        boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
+        border: "4px solid white",
+        boxShadow: "0 8px 18px rgba(15,23,42,0.16)",
         flexShrink: 0,
         background: "#e2e8f0",
+        margin: "0 auto",
+        display: "block",
       }}
       onError={() => setImageFailed(true)}
     />
@@ -627,13 +630,13 @@ export default function WeeklySummaryByDivision({
                       style={{
                         ...styles.consultantCard,
                         background: divisionStyle.cardBackground,
-                        borderLeft: `4px solid ${divisionStyle.accent}`,
+                        borderTop: `5px solid ${divisionStyle.accent}`,
                       }}
                     >
                       <div style={styles.consultantHeader}>
-                        <ConsultantAvatar consultant={consultant} size={42} />
+                        <ConsultantAvatar consultant={consultant} size={78} />
 
-                        <div>
+                        <div style={styles.consultantTextBlock}>
                           <p style={styles.consultantName}>{consultant}</p>
                           <p style={styles.smallMuted}>
                             {items.length} event
@@ -703,7 +706,7 @@ export default function WeeklySummaryByDivision({
 
                       <ConsultantAvatar
                         consultant={consultant.consultant}
-                        size={48}
+                        size={58}
                       />
 
                       <div style={styles.rankNameBlock}>
@@ -881,44 +884,61 @@ const styles = {
 
   consultantCard: {
     border: "1px solid #e2e8f0",
-    borderRadius: "14px",
-    padding: "10px",
+    borderRadius: "16px",
+    padding: "14px 12px 12px",
+    minHeight: "190px",
+    textAlign: "center",
   },
 
   consultantHeader: {
     display: "flex",
+    flexDirection: "column",
     alignItems: "center",
+    justifyContent: "center",
     gap: "8px",
-    marginBottom: "8px",
+    marginBottom: "12px",
+    textAlign: "center",
+  },
+
+  consultantTextBlock: {
+    display: "grid",
+    justifyItems: "center",
+    gap: "2px",
   },
 
   consultantName: {
     margin: 0,
     fontWeight: "950",
-    fontSize: "13px",
+    fontSize: "17px",
+    lineHeight: 1.15,
+    letterSpacing: "-0.25px",
+    textAlign: "center",
   },
 
   smallMuted: {
-    margin: "1px 0 0",
+    margin: "2px 0 0",
     color: "#64748b",
-    fontSize: "11px",
-    fontWeight: "700",
+    fontSize: "12px",
+    fontWeight: "850",
+    textAlign: "center",
   },
 
   noConsultantEvents: {
     margin: 0,
     color: "#94a3b8",
-    fontSize: "11px",
-    fontWeight: "800",
+    fontSize: "12px",
+    fontWeight: "850",
     background: "white",
     border: "1px dashed #cbd5e1",
     borderRadius: "10px",
-    padding: "7px",
+    padding: "8px",
+    textAlign: "center",
   },
 
   eventList: {
     display: "grid",
     gap: "6px",
+    textAlign: "left",
   },
 
   weeklyEvent: {
@@ -954,30 +974,31 @@ const styles = {
   rankCard: {
     display: "grid",
     gridTemplateColumns:
-      "minmax(220px, 0.8fr) minmax(260px, 1.3fr) minmax(110px, 0.35fr)",
+      "minmax(260px, 0.9fr) minmax(260px, 1.2fr) minmax(110px, 0.35fr)",
     gap: "12px",
     alignItems: "center",
     background: "#ffffff",
     border: "1px solid #e2e8f0",
     borderRadius: "14px",
-    padding: "10px",
+    padding: "12px",
   },
 
   rankLeft: {
     display: "flex",
     alignItems: "center",
-    gap: "9px",
+    gap: "10px",
     minWidth: 0,
   },
 
   rankNumber: {
-    width: "34px",
-    height: "34px",
+    width: "38px",
+    height: "38px",
     borderRadius: "10px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontWeight: "950",
+    flexShrink: 0,
   },
 
   rankNameBlock: {
@@ -987,11 +1008,12 @@ const styles = {
   rankName: {
     margin: 0,
     fontWeight: "950",
-    fontSize: "14px",
+    fontSize: "16px",
+    lineHeight: 1.15,
   },
 
   rankDivision: {
-    margin: "2px 0 0",
+    margin: "3px 0 0",
     color: "#64748b",
     fontSize: "11px",
     fontWeight: "800",
