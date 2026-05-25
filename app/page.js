@@ -1,104 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-
-const CONSULTANT_ASSIGNMENTS = {
-  "Erick Herradura": ["Park Retirement"],
-
-  "Brenda Rojas": [
-    "North Valley",
-    "Heritage Manor",
-    "Pacific",
-    "Monterey Park",
-    "Tarzana",
-    "Vineland",
-  ],
-
-  "Guillermo Vicencio": [
-    "Anaheim",
-    "Bonita Hills",
-    "French Park",
-    "Gordon Lane",
-    "Park Regency Care",
-    "Pelican Ridge",
-  ],
-
-  "Beth Clark": [
-    "Alcott",
-    "Country Oaks",
-    "College Vista",
-    "Sunset Manor",
-    "Pomona Vista",
-    "Sun Mar Nursing",
-  ],
-
-  "Jinkee Javier": [
-    "Courtyard",
-    "Crescent City",
-    "Diamond Ridge",
-    "Excell",
-    "Madera",
-    "Mission Carmichael",
-  ],
-
-  "Melissa Acuna": [
-    "Citrus",
-    "CCRC",
-    "Menifee",
-    "Trabuco",
-    "Victoria Care",
-    "Mission Care",
-  ],
-
-  "Gerly Orona": [
-    "Extended Care",
-    "Garden Park",
-    "Mountain View",
-    "Ocean View",
-    "Villa Rancho Bernardo",
-    "Vista View",
-  ],
-
-  "Sammy Balisbis": [
-    "Villa Del Sol",
-    "The Grove",
-    "Sierra View",
-    "Cottage Crest",
-    "Paramount",
-    "Sunny Hills",
-    "Edutrack",
-  ],
-
-  "Donna Kimura": ["Blossom Grove", "Del Mar"],
-};
-
-function normalizeFacilityName(name) {
-  return String(name || "")
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, "")
-    .replace(/care center|healthcare center|rehabilitation hospital|rehabilitation|hospital|snf|nursing and rehabilitation|nursing/g, "")
-    .replace(/[^a-z0-9]/g, "")
-    .trim();
-}
-
-function getConsultantForFacility(facilityName) {
-  const normalizedFacility = normalizeFacilityName(facilityName);
-
-  for (const [consultant, facilities] of Object.entries(CONSULTANT_ASSIGNMENTS)) {
-    const match = facilities.some((assignedFacility) => {
-      const normalizedAssigned = normalizeFacilityName(assignedFacility);
-
-      return (
-        normalizedFacility.includes(normalizedAssigned) ||
-        normalizedAssigned.includes(normalizedFacility)
-      );
-    });
-
-    if (match) return consultant;
-  }
-
-  return "Unassigned";
-}
+import WeeklySummaryByDivision from "../components/WeeklySummaryByDivision";
 
 export default function Home() {
   const [submissions, setSubmissions] = useState([]);
@@ -558,57 +461,29 @@ export default function Home() {
       count,
     }));
 
-  const weeklySummaryGroups = useMemo(() => {
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-
-    const sevenDaysAgo = new Date(today);
-    sevenDaysAgo.setDate(today.getDate() - 7);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
-
-    const items = submissions
-      .filter((submission) => {
-        const facilityMatches =
-          selectedFacility === "All Facilities" ||
-          submission.answers?.["3"]?.answer === selectedFacility;
-
-        if (!facilityMatches) return false;
-
-        const surveyDateValue = getAnswer(submission.answers, "5");
-        const surveyDate = parseFacilityDate(surveyDateValue);
-
-        if (!surveyDate) return false;
-
-        return surveyDate >= sevenDaysAgo && surveyDate <= today;
-      })
-      .sort((a, b) => {
-        const dateA = parseFacilityDate(getAnswer(a.answers, "5"));
-        const dateB = parseFacilityDate(getAnswer(b.answers, "5"));
-
-        return dateB - dateA;
-      })
+  const weeklySummaryItems = useMemo(() => {
+    return submissions
       .map((submission) => {
         const answers = submission.answers;
         const facility = getAnswer(answers, "3");
+        const rawDate = getAnswer(answers, "5");
 
         return {
           id: submission.id,
-          consultant: getConsultantForFacility(facility),
           facility,
-          date: formatDisplayDate(getAnswer(answers, "5")),
+          rawDate,
+          date: formatDisplayDate(rawDate),
           surveyType: getAnswer(answers, "4"),
           comments: getComments(answers),
         };
+      })
+      .filter((item) => {
+        const facilityMatches =
+          selectedFacility === "All Facilities" ||
+          item.facility === selectedFacility;
+
+        return facilityMatches;
       });
-
-    return items.reduce((groups, item) => {
-      if (!groups[item.consultant]) {
-        groups[item.consultant] = [];
-      }
-
-      groups[item.consultant].push(item);
-      return groups;
-    }, {});
   }, [submissions, selectedFacility]);
 
   return (
@@ -714,36 +589,9 @@ export default function Home() {
               Saved analyses: {savedAnalysisCount}
             </p>
           </div>
-
-          <div style={styles.weeklyTile}>
-            <p style={styles.eventTileLabel}>Weekly Summary</p>
-            <p style={styles.weeklySubtext}>Past 7 days from today</p>
-
-            <div style={styles.weeklyList}>
-              {Object.keys(weeklySummaryGroups).length > 0 ? (
-                Object.entries(weeklySummaryGroups).map(([consultant, items]) => (
-                  <div key={consultant} style={styles.consultantGroup}>
-                    <div style={styles.consultantName}>{consultant}</div>
-
-                    {items.map((item) => (
-                      <div key={item.id} style={styles.weeklyItem}>
-                        <strong>{item.facility}</strong>: {item.date} -{" "}
-                        {item.surveyType}.{" "}
-                        <span style={styles.weeklyComments}>
-                          Comments: {item.comments}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ))
-              ) : (
-                <div style={styles.weeklyEmpty}>
-                  No survey activity entered in the past 7 days.
-                </div>
-              )}
-            </div>
-          </div>
         </div>
+
+        <WeeklySummaryByDivision weeklySummaryItems={weeklySummaryItems} />
       </section>
 
       {filteredSubmissions.map((submission) => {
@@ -1037,7 +885,7 @@ const styles = {
 
   tileGrid: {
     display: "grid",
-    gridTemplateColumns: "1.1fr 0.68fr 2fr",
+    gridTemplateColumns: "1.1fr 0.68fr",
     gap: "10px",
     alignItems: "stretch",
   },
@@ -1052,15 +900,6 @@ const styles = {
   },
 
   severityTile: {
-    background: "rgba(255,255,255,0.94)",
-    backdropFilter: "blur(14px)",
-    border: "1px solid rgba(226, 232, 240, 0.95)",
-    padding: "12px",
-    borderRadius: "16px",
-    boxShadow: "0 8px 20px rgba(15, 23, 42, 0.055)",
-  },
-
-  weeklyTile: {
     background: "rgba(255,255,255,0.94)",
     backdropFilter: "blur(14px)",
     border: "1px solid rgba(226, 232, 240, 0.95)",
@@ -1134,54 +973,6 @@ const styles = {
     fontSize: "12px",
     fontWeight: "700",
     lineHeight: 1.3,
-  },
-
-  weeklySubtext: {
-    margin: "3px 0 0",
-    color: "#94a3b8",
-    fontSize: "11px",
-    fontWeight: "700",
-  },
-
-  weeklyList: {
-    marginTop: "7px",
-    display: "grid",
-    gap: "7px",
-    maxHeight: "175px",
-    overflowY: "auto",
-    paddingRight: "4px",
-  },
-
-  consultantGroup: {
-    borderTop: "1px solid #e2e8f0",
-    paddingTop: "7px",
-  },
-
-  consultantName: {
-    fontSize: "12px",
-    fontWeight: "900",
-    color: "#0f172a",
-    marginBottom: "4px",
-  },
-
-  weeklyItem: {
-    color: "#334155",
-    fontSize: "12px",
-    lineHeight: 1.35,
-    paddingBottom: "4px",
-  },
-
-  weeklyComments: {
-    color: "#64748b",
-  },
-
-  weeklyEmpty: {
-    color: "#64748b",
-    fontSize: "12px",
-    fontWeight: "700",
-    lineHeight: 1.35,
-    borderTop: "1px solid #e2e8f0",
-    paddingTop: "7px",
   },
 
   card: {
