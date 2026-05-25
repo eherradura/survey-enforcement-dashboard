@@ -1,7 +1,10 @@
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
-const PARSER_VERSION = "direct-pdf-v3-lib-import";
+import { Storage } from "@google-cloud/storage";
+import vision from "@google-cloud/vision";
+
+const PARSER_VERSION = "direct-pdf-v4-google-cloud-vision-fallback";
 
 async function loadPdfParse() {
   const pdfParseModule = await import("pdf-parse/lib/pdf-parse.js");
@@ -100,6 +103,7 @@ function extractDeficiencies(text) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
     const ftagMatches = [...line.matchAll(/\bF\s*0?(\d{3})\b/gi)];
 
     for (const ftagMatch of ftagMatches) {
@@ -107,7 +111,7 @@ function extractDeficiencies(text) {
 
       if (ftag === "F000") continue;
 
-      const nearbyText = lines.slice(i, i + 32).join(" ");
+      const nearbyText = lines.slice(Math.max(i - 8, 0), i + 36).join(" ");
 
       const ssMatch =
         nearbyText.match(/\bSS\s*[:=]?\s*([A-L])\b/i) ||
@@ -124,15 +128,15 @@ function extractDeficiencies(text) {
   }
 
   const patterns = [
-    /\bF\s*0?(\d{3})\b.{0,700}?\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b/gi,
-    /\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b.{0,700}?\bF\s*0?(\d{3})\b/gi,
-    /\bF\s*0?(\d{3})\b.{0,700}?\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/gi,
-    /\bF\s*0?(\d{3})\b.{0,700}?\bSeverity\s*[:=]?\s*([A-L])\b/gi,
-    /\bF\s*0?(\d{3})\b.{0,700}?\bLevel\s*[:=]?\s*([A-L])\b/gi,
-    /\bTag\s*[:#]?\s*F?\s*0?(\d{3})\b.{0,1000}?\b(?:Scope\s*\/?\s*Severity|Severity|SS|S\/S|Level)\s*[:=]?\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,900}?\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b/gi,
+    /\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b.{0,900}?\bF\s*0?(\d{3})\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,900}?\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,900}?\bSeverity\s*[:=]?\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,900}?\bLevel\s*[:=]?\s*([A-L])\b/gi,
+    /\bTag\s*[:#]?\s*F?\s*0?(\d{3})\b.{0,1200}?\b(?:Scope\s*\/?\s*Severity|Severity|SS|S\/S|Level)\s*[:=]?\s*([A-L])\b/gi,
     /\bF\s*0?(\d{3})\s+([A-L])\b/gi,
     /\bF\s*0?(\d{3})\s*[-–—]\s*([A-L])\b/gi,
-    /\bF\s*0?(\d{3})\b(?:(?!\bF\s*0?\d{3}\b).){0,2200}?\b(?:SS|S\/S|Scope\s*\/?\s*Severity|Scope\s+and\s+Severity|Severity|Level)\s*[:=]?\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\b(?:(?!\bF\s*0?\d{3}\b).){0,2600}?\b(?:SS|S\/S|Scope\s*\/?\s*Severity|Scope\s+and\s+Severity|Severity|Level)\s*[:=]?\s*([A-L])\b/gi,
   ];
 
   for (const pattern of patterns) {
@@ -248,7 +252,7 @@ function detectCoverLetterDeficiencyIndication(text) {
   };
 }
 
-function buildCompactDebug(text, directResult, ocrResult, selectedTextSource) {
+function buildCompactDebug(text, directResult, ocrResult, visionResult, selectedTextSource) {
   const normalized = normalizeText(text);
   const flattened = normalized.replace(/\n/g, " ");
 
@@ -266,18 +270,18 @@ function buildCompactDebug(text, directResult, ocrResult, selectedTextSource) {
 
   for (const pattern of patterns) {
     for (const match of flattened.matchAll(pattern)) {
-      const start = Math.max(match.index - 250, 0);
-      const end = Math.min(match.index + 450, flattened.length);
+      const start = Math.max(match.index - 300, 0);
+      const end = Math.min(match.index + 550, flattened.length);
 
       tagSnippets.push({
         match: match[0],
         snippet: flattened.slice(start, end),
       });
 
-      if (tagSnippets.length >= 20) break;
+      if (tagSnippets.length >= 30) break;
     }
 
-    if (tagSnippets.length >= 20) break;
+    if (tagSnippets.length >= 30) break;
   }
 
   return {
@@ -287,11 +291,15 @@ function buildCompactDebug(text, directResult, ocrResult, selectedTextSource) {
       selectionReason: selectedTextSource.selectionReason,
       directTextLength: selectedTextSource.directTextLength,
       ocrTextLength: selectedTextSource.ocrTextLength,
+      visionTextLength: selectedTextSource.visionTextLength,
       directHasFtags: selectedTextSource.directHasFtags,
       ocrHasFtags: selectedTextSource.ocrHasFtags,
+      visionHasFtags: selectedTextSource.visionHasFtags,
       directHasCfr: selectedTextSource.directHasCfr,
       ocrHasCfr: selectedTextSource.ocrHasCfr,
+      visionHasCfr: selectedTextSource.visionHasCfr,
       directPageCount: selectedTextSource.directPageCount,
+      visionPageCount: selectedTextSource.visionPageCount,
     },
     directResultSummary: {
       success: directResult?.success || false,
@@ -309,6 +317,17 @@ function buildCompactDebug(text, directResult, ocrResult, selectedTextSource) {
       textLength: normalizeText(ocrResult?.text || "").length,
       fileName: ocrResult?.fileName || null,
       reason: ocrResult?.reason || null,
+    },
+    visionResultSummary: {
+      success: visionResult?.success || false,
+      error: visionResult?.error || null,
+      details: visionResult?.details || null,
+      textLength: normalizeText(visionResult?.text || "").length,
+      pageCount: visionResult?.pageCount || null,
+      inputGcsUri: visionResult?.inputGcsUri || null,
+      outputGcsPrefix: visionResult?.outputGcsPrefix || null,
+      skipped: visionResult?.skipped || false,
+      reason: visionResult?.reason || null,
     },
     textMarkers: {
       textLength: flattened.length,
@@ -352,7 +371,55 @@ async function fetchJson(url, options = {}) {
   }
 }
 
-async function getPdfTextDirectlyFromDrive(driveConnectorUrl, fileId) {
+function getGoogleCloudCredentials() {
+  const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+
+  if (!rawJson) {
+    throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_JSON");
+  }
+
+  const credentials = JSON.parse(rawJson);
+
+  if (credentials.private_key) {
+    credentials.private_key = credentials.private_key.replace(/\\n/g, "\n");
+  }
+
+  return credentials;
+}
+
+function getGoogleCloudClients() {
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
+  const bucketName = process.env.GOOGLE_CLOUD_BUCKET_NAME;
+
+  if (!projectId) {
+    throw new Error("Missing GOOGLE_CLOUD_PROJECT_ID");
+  }
+
+  if (!bucketName) {
+    throw new Error("Missing GOOGLE_CLOUD_BUCKET_NAME");
+  }
+
+  const credentials = getGoogleCloudCredentials();
+
+  const storage = new Storage({
+    projectId,
+    credentials,
+  });
+
+  const visionClient = new vision.ImageAnnotatorClient({
+    projectId,
+    credentials,
+  });
+
+  return {
+    projectId,
+    bucketName,
+    storage,
+    visionClient,
+  };
+}
+
+async function getPdfFileFromDrive(driveConnectorUrl, fileId) {
   const fileData = await fetchJson(
     `${driveConnectorUrl}?action=file&fileId=${encodeURIComponent(fileId)}`
   );
@@ -373,16 +440,31 @@ async function getPdfTextDirectlyFromDrive(driveConnectorUrl, fileId) {
     };
   }
 
+  return {
+    success: true,
+    fileName: fileData.fileName || `${fileId}.pdf`,
+    mimeType: fileData.mimeType || "application/pdf",
+    buffer: Buffer.from(fileData.base64, "base64"),
+  };
+}
+
+async function getPdfTextDirectlyFromBuffer(pdfFile) {
+  if (!pdfFile?.success || !pdfFile.buffer) {
+    return {
+      success: false,
+      error: "No PDF buffer available for direct extraction",
+    };
+  }
+
   try {
     const pdfParse = await loadPdfParse();
-    const buffer = Buffer.from(fileData.base64, "base64");
-    const parsed = await pdfParse(buffer);
+    const parsed = await pdfParse(pdfFile.buffer);
 
     return {
       success: true,
       source: "Direct PDF text extraction",
-      fileName: fileData.fileName,
-      mimeType: fileData.mimeType,
+      fileName: pdfFile.fileName,
+      mimeType: pdfFile.mimeType,
       text: parsed.text || "",
       pageCount: parsed.numpages || null,
       info: parsed.info || null,
@@ -392,8 +474,8 @@ async function getPdfTextDirectlyFromDrive(driveConnectorUrl, fileId) {
       success: false,
       error: "Direct PDF text extraction failed",
       details: error.message,
-      fileName: fileData.fileName,
-      mimeType: fileData.mimeType,
+      fileName: pdfFile.fileName,
+      mimeType: pdfFile.mimeType,
     };
   }
 }
@@ -421,15 +503,177 @@ async function getGoogleOcrText(driveConnectorUrl, fileId) {
   };
 }
 
-function chooseBestTextSource(directResult, ocrResult) {
+function shouldRunVisionOcr(initialParsedResult, selectedTextSource) {
+  const allowVision = String(process.env.ENABLE_GOOGLE_CLOUD_VISION_OCR || "true")
+    .toLowerCase()
+    .trim();
+
+  if (allowVision === "false" || allowVision === "0" || allowVision === "no") {
+    return false;
+  }
+
+  if (initialParsedResult.deficiencies.length > 0) {
+    return false;
+  }
+
+  if (initialParsedResult.coverLetterIndicatesDeficiencies) {
+    return true;
+  }
+
+  if (!selectedTextSource.directHasFtags && !selectedTextSource.ocrHasFtags) {
+    return true;
+  }
+
+  return false;
+}
+
+async function runGoogleCloudVisionPdfOcr({ pdfFile, fileId, pageCount }) {
+  if (!pdfFile?.success || !pdfFile.buffer) {
+    return {
+      success: false,
+      error: "No PDF buffer available for Google Cloud Vision OCR",
+    };
+  }
+
+  const maxPages = Number(process.env.GOOGLE_VISION_MAX_PAGES || "45");
+
+  if (pageCount && pageCount > maxPages) {
+    return {
+      success: false,
+      skipped: true,
+      reason: `Skipped Google Cloud Vision OCR because page count ${pageCount} exceeds max ${maxPages}`,
+      pageCount,
+    };
+  }
+
+  try {
+    const { bucketName, storage, visionClient } = getGoogleCloudClients();
+
+    const safeFileName = String(pdfFile.fileName || `${fileId}.pdf`)
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .slice(0, 120);
+
+    const jobId = `${fileId}-${Date.now()}`;
+    const inputObjectName = `ocr-input/${jobId}/${safeFileName}`;
+    const outputPrefix = `ocr-output/${jobId}/`;
+
+    const bucket = storage.bucket(bucketName);
+
+    await bucket.file(inputObjectName).save(pdfFile.buffer, {
+      resumable: false,
+      contentType: "application/pdf",
+      metadata: {
+        cacheControl: "no-store",
+      },
+    });
+
+    const inputGcsUri = `gs://${bucketName}/${inputObjectName}`;
+    const outputGcsPrefix = `gs://${bucketName}/${outputPrefix}`;
+
+    const request = {
+      requests: [
+        {
+          inputConfig: {
+            gcsSource: {
+              uri: inputGcsUri,
+            },
+            mimeType: "application/pdf",
+          },
+          features: [
+            {
+              type: "DOCUMENT_TEXT_DETECTION",
+            },
+          ],
+          outputConfig: {
+            gcsDestination: {
+              uri: outputGcsPrefix,
+            },
+            batchSize: 10,
+          },
+        },
+      ],
+    };
+
+    const [operation] = await visionClient.asyncBatchAnnotateFiles(request);
+    await operation.promise();
+
+    const [files] = await bucket.getFiles({
+      prefix: outputPrefix,
+    });
+
+    const jsonFiles = files.filter((file) => file.name.endsWith(".json"));
+
+    if (jsonFiles.length === 0) {
+      return {
+        success: false,
+        error: "Google Cloud Vision completed but no OCR JSON output was found",
+        inputGcsUri,
+        outputGcsPrefix,
+      };
+    }
+
+    let combinedText = "";
+    let pageTotal = 0;
+
+    for (const file of jsonFiles) {
+      const [contents] = await file.download();
+      const json = JSON.parse(contents.toString("utf8"));
+
+      const responses = Array.isArray(json.responses) ? json.responses : [];
+
+      pageTotal += responses.length;
+
+      for (const response of responses) {
+        const pageText =
+          response?.fullTextAnnotation?.text ||
+          response?.textAnnotations?.[0]?.description ||
+          "";
+
+        if (pageText) {
+          combinedText += `\n\n${pageText}`;
+        }
+      }
+    }
+
+    if (String(process.env.GOOGLE_VISION_CLEANUP || "true").toLowerCase() !== "false") {
+      await Promise.allSettled([
+        bucket.file(inputObjectName).delete(),
+        ...files.map((file) => file.delete()),
+      ]);
+    }
+
+    return {
+      success: true,
+      source: "Google Cloud Vision OCR",
+      fileName: pdfFile.fileName,
+      text: normalizeText(combinedText),
+      textLength: normalizeText(combinedText).length,
+      pageCount: pageTotal || pageCount || null,
+      inputGcsUri,
+      outputGcsPrefix,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: "Google Cloud Vision OCR failed",
+      details: error.message,
+      pageCount: pageCount || null,
+    };
+  }
+}
+
+function chooseBestTextSource(directResult, ocrResult, visionResult = null) {
   const directText = normalizeText(directResult?.text || "");
   const ocrText = normalizeText(ocrResult?.text || "");
+  const visionText = normalizeText(visionResult?.text || "");
 
   const directHasFtags = /\bF\s*0?\d{3}\b/i.test(directText);
   const ocrHasFtags = /\bF\s*0?\d{3}\b/i.test(ocrText);
+  const visionHasFtags = /\bF\s*0?\d{3}\b/i.test(visionText);
 
   const directHasCfr = /\b483\.\d+/i.test(directText);
   const ocrHasCfr = /\b483\.\d+/i.test(ocrText);
+  const visionHasCfr = /\b483\.\d+/i.test(visionText);
 
   const directScore =
     directText.length +
@@ -441,6 +685,31 @@ function chooseBestTextSource(directResult, ocrResult) {
     (ocrHasFtags ? 100000 : 0) +
     (ocrHasCfr ? 20000 : 0);
 
+  const visionScore =
+    visionText.length +
+    (visionHasFtags ? 200000 : 0) +
+    (visionHasCfr ? 50000 : 0);
+
+  if (visionResult?.success && visionText.length > 200 && visionScore >= directScore && visionScore >= ocrScore) {
+    return {
+      source: visionResult.source,
+      fileName: visionResult.fileName,
+      text: visionText,
+      directTextLength: directText.length,
+      ocrTextLength: ocrText.length,
+      visionTextLength: visionText.length,
+      directHasFtags,
+      ocrHasFtags,
+      visionHasFtags,
+      directHasCfr,
+      ocrHasCfr,
+      visionHasCfr,
+      directPageCount: directResult?.pageCount || null,
+      visionPageCount: visionResult?.pageCount || null,
+      selectionReason: "Google Cloud Vision OCR scored highest",
+    };
+  }
+
   if (directResult?.success && directText.length > 200 && directScore >= ocrScore) {
     return {
       source: directResult.source,
@@ -448,12 +717,16 @@ function chooseBestTextSource(directResult, ocrResult) {
       text: directText,
       directTextLength: directText.length,
       ocrTextLength: ocrText.length,
+      visionTextLength: visionText.length,
       directHasFtags,
       ocrHasFtags,
+      visionHasFtags,
       directHasCfr,
       ocrHasCfr,
+      visionHasCfr,
       directPageCount: directResult.pageCount || null,
-      selectionReason: "Direct PDF text scored higher or equal",
+      visionPageCount: visionResult?.pageCount || null,
+      selectionReason: "Direct PDF text scored higher or equal than Google Drive OCR",
     };
   }
 
@@ -464,12 +737,16 @@ function chooseBestTextSource(directResult, ocrResult) {
       text: ocrText,
       directTextLength: directText.length,
       ocrTextLength: ocrText.length,
+      visionTextLength: visionText.length,
       directHasFtags,
       ocrHasFtags,
+      visionHasFtags,
       directHasCfr,
       ocrHasCfr,
+      visionHasCfr,
       directPageCount: directResult?.pageCount || null,
-      selectionReason: "Google OCR scored higher or direct text unavailable",
+      visionPageCount: visionResult?.pageCount || null,
+      selectionReason: "Google Drive OCR scored higher or direct text unavailable",
     };
   }
 
@@ -480,11 +757,15 @@ function chooseBestTextSource(directResult, ocrResult) {
       text: directText,
       directTextLength: directText.length,
       ocrTextLength: ocrText.length,
+      visionTextLength: visionText.length,
       directHasFtags,
       ocrHasFtags,
+      visionHasFtags,
       directHasCfr,
       ocrHasCfr,
+      visionHasCfr,
       directPageCount: directResult.pageCount || null,
+      visionPageCount: visionResult?.pageCount || null,
       selectionReason: "Fallback to direct text despite low confidence",
     };
   }
@@ -495,11 +776,15 @@ function chooseBestTextSource(directResult, ocrResult) {
     text: "",
     directTextLength: directText.length,
     ocrTextLength: ocrText.length,
+    visionTextLength: visionText.length,
     directHasFtags,
     ocrHasFtags,
+    visionHasFtags,
     directHasCfr,
     ocrHasCfr,
+    visionHasCfr,
     directPageCount: directResult?.pageCount || null,
+    visionPageCount: visionResult?.pageCount || null,
     selectionReason: "No usable text source found",
   };
 }
@@ -512,6 +797,7 @@ function buildParsedResult({
   selectedTextSource,
   directResult,
   ocrResult,
+  visionResult,
 }) {
   const text = normalizeText(selectedTextSource.text || "");
 
@@ -527,6 +813,7 @@ function buildParsedResult({
     text,
     directResult,
     ocrResult,
+    visionResult,
     selectedTextSource
   );
 
@@ -655,10 +942,18 @@ export async function POST(request) {
       });
     }
 
-    const directResult = await getPdfTextDirectlyFromDrive(
-      driveConnectorUrl,
-      fileId
-    );
+    const pdfFile = await getPdfFileFromDrive(driveConnectorUrl, fileId);
+
+    if (!pdfFile.success) {
+      return Response.json({
+        success: false,
+        parserVersion: PARSER_VERSION,
+        error: pdfFile.error,
+        details: pdfFile.details || null,
+      });
+    }
+
+    const directResult = await getPdfTextDirectlyFromBuffer(pdfFile);
 
     let ocrResult = null;
 
@@ -673,39 +968,22 @@ export async function POST(request) {
     } else {
       ocrResult = {
         success: false,
-        source: "Google OCR skipped",
+        source: "Google Drive OCR skipped",
         text: "",
         textLength: 0,
         reason: "Direct PDF text looked useful",
       };
     }
 
-    const selectedTextSource = chooseBestTextSource(directResult, ocrResult);
-    const text = normalizeText(selectedTextSource.text || "");
+    let selectedTextSource = chooseBestTextSource(directResult, ocrResult);
+    let visionResult = {
+      success: false,
+      skipped: true,
+      reason: "Google Cloud Vision OCR not evaluated yet",
+      text: "",
+    };
 
-    if (!text) {
-      return Response.json({
-        success: false,
-        parserVersion: PARSER_VERSION,
-        error: "No usable text extracted from PDF",
-        directResultSummary: {
-          success: directResult?.success || false,
-          error: directResult?.error || null,
-          details: directResult?.details || null,
-          textLength: normalizeText(directResult?.text || "").length,
-          fileName: directResult?.fileName || null,
-        },
-        ocrResultSummary: {
-          success: ocrResult?.success || false,
-          error: ocrResult?.error || null,
-          details: ocrResult?.details || null,
-          textLength: normalizeText(ocrResult?.text || "").length,
-          fileName: ocrResult?.fileName || null,
-        },
-      });
-    }
-
-    const parsedResult = buildParsedResult({
+    const initialParsedResult = buildParsedResult({
       fileId,
       submissionId,
       facility,
@@ -713,22 +991,48 @@ export async function POST(request) {
       selectedTextSource,
       directResult,
       ocrResult,
+      visionResult,
+    });
+
+    if (shouldRunVisionOcr(initialParsedResult, selectedTextSource)) {
+      visionResult = await runGoogleCloudVisionPdfOcr({
+        pdfFile,
+        fileId,
+        pageCount: directResult?.pageCount || null,
+      });
+
+      selectedTextSource = chooseBestTextSource(
+        directResult,
+        ocrResult,
+        visionResult
+      );
+    }
+
+    const finalParsedResult = buildParsedResult({
+      fileId,
+      submissionId,
+      facility,
+      surveyType,
+      selectedTextSource,
+      directResult,
+      ocrResult,
+      visionResult,
     });
 
     const saveResult = await saveAnalysisToSheet({
       driveConnectorUrl,
       submissionId: submissionId || "",
       fileId,
-      fileName: parsedResult.fileName || "",
+      fileName: finalParsedResult.fileName || "",
       facility: facility || "",
       surveyType: surveyType || "",
-      intakeNumberFromPdf: parsedResult.intakeNumberFromPdf,
-      deficiencies: parsedResult.deficiencies,
-      parsedResult,
+      intakeNumberFromPdf: finalParsedResult.intakeNumberFromPdf,
+      deficiencies: finalParsedResult.deficiencies,
+      parsedResult: finalParsedResult,
     });
 
     return Response.json({
-      ...parsedResult,
+      ...finalParsedResult,
       savedToSheet: saveResult?.success === true,
       saveResult,
     });
