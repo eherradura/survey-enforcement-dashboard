@@ -98,7 +98,7 @@ function extractDeficiencies(text) {
     .map((line) => line.trim())
     .filter(Boolean);
 
-  // Pattern 1: F689 ... SS=E / SS E / Scope Severity E nearby
+  // Pattern 1: line-based F-tag with nearby SS/scope severity
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const ftagMatches = [...line.matchAll(/\bF\s*0?(\d{3})\b/gi)];
@@ -190,7 +190,7 @@ function extractDeficiencies(text) {
     addDeficiency(deficienciesByFtag, ftag, severity);
   }
 
-  // Pattern 7: some 2567 exports read as "F 0689" then "Level E" or "Severity Level E"
+  // Pattern 7: F689 ... Level E
   const levelPattern =
     /\bF\s*0?(\d{3})\b.{0,900}?\b(?:level|severity level)\s*[:=]?\s*([A-L])\b/gi;
 
@@ -538,7 +538,6 @@ function chooseBestTextSource(directResult, ocrResult) {
       directHasFtags,
       ocrHasFtags,
       directHasCfr,
-      ocrHasCfr,
       directPageCount: directResult.pageCount || null,
       selectionReason: "Fallback to direct text despite low confidence",
     };
