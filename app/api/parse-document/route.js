@@ -4,7 +4,7 @@ export const maxDuration = 300;
 import { Storage } from "@google-cloud/storage";
 import vision from "@google-cloud/vision";
 
-const PARSER_VERSION = "direct-pdf-v5-remedy-date-extraction";
+const PARSER_VERSION = "direct-pdf-v6-no-deficiency-detection";
 
 async function loadPdfParse() {
   const pdfParseModule = await import("pdf-parse/lib/pdf-parse.js");
@@ -55,12 +55,29 @@ function isAnnualOrRecertification(fileName, text) {
 function extractIntakeNumber(fileName, text) {
   const cleanText = text.replace(/\s+/g, " ").trim();
 
+  const facilityReportedIncidentMatch = cleanText.match(
+    /facility[-\s]*reported incident number\s+(\d{4,})/i
+  );
+
+  if (facilityReportedIncidentMatch) {
+    return facilityReportedIncidentMatch[1];
+  }
+
+  const complaintFriMatch =
+    cleanText.match(/complaint\/FRI.*?(?:number|intake)?\s*(\d{4,})/i) ||
+    cleanText.match(/complaint\s*\/?\s*FRI\s+survey.*?(\d{4,})/i);
+
+  if (complaintFriMatch) {
+    return complaintFriMatch[1];
+  }
+
   if (isAnnualOrRecertification(fileName, cleanText)) {
     return "Recertification";
   }
 
   const intakeMatch =
     cleanText.match(/intake\s*(number|#)?\s*[:#]?\s*([A-Z]{1,5}\d{4,})/i) ||
+    cleanText.match(/intake\s*(number|#)?\s*[:#]?\s*(\d{4,})/i) ||
     cleanText.match(/\bCA\d{4,}\b/i);
 
   if (!intakeMatch) return null;
@@ -193,9 +210,7 @@ function extractRemedyDates(text) {
   const cleanText = text.replace(/\s+/g, " ").trim();
 
   const dpnaMatch =
-    cleanText.match(
-      /DPNA\s+effective\s+([A-Z][a-z]+ \d{1,2}, \d{4})/i
-    ) ||
+    cleanText.match(/DPNA\s+effective\s+([A-Z][a-z]+ \d{1,2}, \d{4})/i) ||
     cleanText.match(
       /denial\s+of\s+payment\s+for\s+new\s+admissions.*?effective\s+([A-Z][a-z]+ \d{1,2}, \d{4})/i
     ) ||
@@ -207,9 +222,7 @@ function extractRemedyDates(text) {
     cleanText.match(
       /provider\s+agreement\s+be\s+terminated\s+on\s+([A-Z][a-z]+ \d{1,2},\s*\d{4})/i
     ) ||
-    cleanText.match(
-      /terminated\s+on\s+([A-Z][a-z]+ \d{1,2},\s*\d{4})/i
-    ) ||
+    cleanText.match(/terminated\s+on\s+([A-Z][a-z]+ \d{1,2},\s*\d{4})/i) ||
     cleanText.match(
       /termination\s+date\s*[:\-]?\s*([A-Z][a-z]+ \d{1,2},\s*\d{4})/i
     );
@@ -218,9 +231,7 @@ function extractRemedyDates(text) {
     cleanText.match(
       /civil\s+money\s+penalty.*?\(\$?([\d,]+(?:\.\d{2})?)\)/i
     ) ||
-    cleanText.match(
-      /\$\s*([\d,]+(?:\.\d{2})?)\s*(?:civil money penalty|CMP)/i
-    );
+    cleanText.match(/\$\s*([\d,]+(?:\.\d{2})?)\s*(?:civil money penalty|CMP)/i);
 
   const substantialComplianceDeadlineMatch =
     cleanText.match(
@@ -253,7 +264,10 @@ function extractSurveyDates(text) {
 
   const surveyRange =
     cleanText.match(
-      /survey conducted on\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*to\s*(\d{1,2}\/\d{1,2}\/\d{4})/i
+      /survey conducted on\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*[-–—to]+\s*(\d{1,2}\/\d{1,2}\/\d{4})/i
+    ) ||
+    cleanText.match(
+      /conducted from\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*[-–—to]+\s*(\d{1,2}\/\d{1,2}\/\d{4})/i
     ) ||
     cleanText.match(
       /conducted on\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*to\s*(\d{1,2}\/\d{1,2}\/\d{4})/i
@@ -296,8 +310,33 @@ function buildSeveritySummary(deficiencies) {
     .join(" • ");
 }
 
+function detectNoDeficiencyLetter(text) {
+  const cleanText = text.replace(/\s+/g, " ").trim();
+
+  return (
+    /no deficiencies of participation requirements were identified/i.test(
+      cleanText
+    ) ||
+    /no deficiencies were identified/i.test(cleanText) ||
+    /no deficiency was identified/i.test(cleanText) ||
+    /documents that no deficiencies/i.test(cleanText) ||
+    /documents? that no deficiencies of participation requirements were identified/i.test(
+      cleanText
+    )
+  );
+}
+
 function detectCoverLetterDeficiencyIndication(text) {
   const cleanText = text.replace(/\s+/g, " ").trim();
+
+  const noDeficiencyLetter = detectNoDeficiencyLetter(cleanText);
+
+  if (noDeficiencyLetter) {
+    return {
+      coverLetterIndicatesDeficiencies: false,
+      coverLetterHighestSeverity: null,
+    };
+  }
 
   const mentionsDeficiencies =
     /this survey found the most serious deficiency|deficiencies cited during this survey|poc for the deficiencies|statement of deficiencies|cms.?2567/i.test(
@@ -321,7 +360,13 @@ function detectCoverLetterDeficiencyIndication(text) {
   };
 }
 
-function buildCompactDebug(text, directResult, ocrResult, visionResult, selectedTextSource) {
+function buildCompactDebug(
+  text,
+  directResult,
+  ocrResult,
+  visionResult,
+  selectedTextSource
+) {
   const normalized = normalizeText(text);
   const flattened = normalized.replace(/\n/g, " ");
 
@@ -337,6 +382,8 @@ function buildCompactDebug(text, directResult, ocrResult, visionResult, selected
     /\b483\.\d+/gi,
     /\bDPNA\b/gi,
     /\bterminated\s+on\b/gi,
+    /\bno deficiencies\b/gi,
+    /\bfacility[-\s]*reported incident number\b/gi,
   ];
 
   for (const pattern of patterns) {
@@ -415,6 +462,10 @@ function buildCompactDebug(text, directResult, ocrResult, visionResult, selected
       firstDeficientPracticeIndex:
         flattened.search(/deficient practice/i) >= 0
           ? flattened.search(/deficient practice/i)
+          : null,
+      noDeficiencyIndex:
+        flattened.search(/no deficiencies/i) >= 0
+          ? flattened.search(/no deficiencies/i)
           : null,
     },
     debugTextStart: flattened.slice(0, 2500),
@@ -583,6 +634,10 @@ function shouldRunVisionOcr(initialParsedResult, selectedTextSource) {
     return false;
   }
 
+  if (initialParsedResult.noDeficiencyLetter) {
+    return false;
+  }
+
   if (initialParsedResult.deficiencies.length > 0) {
     return false;
   }
@@ -706,7 +761,10 @@ async function runGoogleCloudVisionPdfOcr({ pdfFile, fileId, pageCount }) {
       }
     }
 
-    if (String(process.env.GOOGLE_VISION_CLEANUP || "true").toLowerCase() !== "false") {
+    if (
+      String(process.env.GOOGLE_VISION_CLEANUP || "true").toLowerCase() !==
+      "false"
+    ) {
       await Promise.allSettled([
         bucket.file(inputObjectName).delete(),
         ...files.map((file) => file.delete()),
@@ -786,7 +844,11 @@ function chooseBestTextSource(directResult, ocrResult, visionResult = null) {
     };
   }
 
-  if (directResult?.success && directText.length > 200 && directScore >= ocrScore) {
+  if (
+    directResult?.success &&
+    directText.length > 200 &&
+    directScore >= ocrScore
+  ) {
     return {
       source: directResult.source,
       fileName: directResult.fileName,
@@ -877,13 +939,25 @@ function buildParsedResult({
 }) {
   const text = normalizeText(selectedTextSource.text || "");
 
-  const deficiencies = extractDeficiencies(text);
+  const noDeficiencyLetter = detectNoDeficiencyLetter(text);
+  const extractedDeficiencies = extractDeficiencies(text);
+  const deficiencies = noDeficiencyLetter ? [] : extractedDeficiencies;
+
   const intakeNumberFromPdf = extractIntakeNumber(
     selectedTextSource.fileName,
     text
   );
+
   const dates = extractSurveyDates(text);
-  const remedyDates = extractRemedyDates(text);
+  const remedyDates = noDeficiencyLetter
+    ? {
+        dpnaDateFromPdf: null,
+        terminationDateFromPdf: null,
+        cmpAmountFromPdf: null,
+        substantialComplianceDeadlineFromPdf: null,
+      }
+    : extractRemedyDates(text);
+
   const severitySummary = buildSeveritySummary(deficiencies);
   const coverLetterSignal = detectCoverLetterDeficiencyIndication(text);
   const compactDebug = buildCompactDebug(
@@ -903,9 +977,11 @@ function buildParsedResult({
     facility: facility || "",
     surveyType: surveyType || "",
     intakeNumberFromPdf,
-    deficienciesFound:
-      deficiencies.length > 0 ||
-      coverLetterSignal.coverLetterIndicatesDeficiencies,
+    noDeficiencyLetter,
+    deficienciesFound: noDeficiencyLetter
+      ? false
+      : deficiencies.length > 0 ||
+        coverLetterSignal.coverLetterIndicatesDeficiencies,
     deficiencies,
     ftags: deficiencies.map((d) => `${d.ftag} - ${d.scopeSeverity}`),
     scopeSeverity: deficiencies.map((d) => d.scopeSeverity),
@@ -939,6 +1015,7 @@ function buildResultForSaving(parsedResult) {
     facility: parsedResult.facility,
     surveyType: parsedResult.surveyType,
     intakeNumberFromPdf: parsedResult.intakeNumberFromPdf,
+    noDeficiencyLetter: parsedResult.noDeficiencyLetter,
     deficienciesFound: parsedResult.deficienciesFound,
     deficiencies: parsedResult.deficiencies,
     ftags: parsedResult.ftags,
@@ -1048,7 +1125,9 @@ export async function POST(request) {
     const directLooksUseful =
       directResult?.success &&
       directText.length > 200 &&
-      (/\bF\s*0?\d{3}\b/i.test(directText) || /\b483\.\d+/i.test(directText));
+      (/\bF\s*0?\d{3}\b/i.test(directText) ||
+        /\b483\.\d+/i.test(directText) ||
+        /no deficiencies/i.test(directText));
 
     if (!directLooksUseful) {
       ocrResult = await getGoogleOcrText(driveConnectorUrl, fileId);
