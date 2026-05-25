@@ -314,6 +314,107 @@ export default function Home() {
     return true;
   }
 
+  function getSurveyTypeCardStyle(surveyType) {
+    const type = String(surveyType || "").toLowerCase();
+
+    if (type.includes("complaint")) {
+      return {
+        background:
+          "linear-gradient(90deg, rgba(255, 251, 235, 0.98), rgba(255,255,255,0.96))",
+        borderLeft: "7px solid #f59e0b",
+      };
+    }
+
+    if (
+      type.includes("facility reported") ||
+      type.includes("fri") ||
+      type.includes("reported incident") ||
+      type.includes("facility-reported")
+    ) {
+      return {
+        background:
+          "linear-gradient(90deg, rgba(255, 241, 242, 0.98), rgba(255,255,255,0.96))",
+        borderLeft: "7px solid #e11d48",
+      };
+    }
+
+    if (type.includes("annual") || type.includes("recert")) {
+      return {
+        background:
+          "linear-gradient(90deg, rgba(239, 246, 255, 0.98), rgba(255,255,255,0.96))",
+        borderLeft: "7px solid #2563eb",
+      };
+    }
+
+    if (
+      type.includes("revisit") ||
+      type.includes("follow") ||
+      type.includes("validation")
+    ) {
+      return {
+        background:
+          "linear-gradient(90deg, rgba(240, 253, 244, 0.98), rgba(255,255,255,0.96))",
+        borderLeft: "7px solid #16a34a",
+      };
+    }
+
+    return {
+      background: "rgba(255,255,255,0.94)",
+      borderLeft: "7px solid #cbd5e1",
+    };
+  }
+
+  function getSurveyTypeBadgeStyle(surveyType) {
+    const type = String(surveyType || "").toLowerCase();
+
+    if (type.includes("complaint")) {
+      return {
+        background: "#fef3c7",
+        color: "#92400e",
+        border: "1px solid #fcd34d",
+      };
+    }
+
+    if (
+      type.includes("facility reported") ||
+      type.includes("fri") ||
+      type.includes("reported incident") ||
+      type.includes("facility-reported")
+    ) {
+      return {
+        background: "#ffe4e6",
+        color: "#9f1239",
+        border: "1px solid #fda4af",
+      };
+    }
+
+    if (type.includes("annual") || type.includes("recert")) {
+      return {
+        background: "#dbeafe",
+        color: "#1e40af",
+        border: "1px solid #93c5fd",
+      };
+    }
+
+    if (
+      type.includes("revisit") ||
+      type.includes("follow") ||
+      type.includes("validation")
+    ) {
+      return {
+        background: "#dcfce7",
+        color: "#166534",
+        border: "1px solid #86efac",
+      };
+    }
+
+    return {
+      background: "#f1f5f9",
+      color: "#334155",
+      border: "1px solid #cbd5e1",
+    };
+  }
+
   async function viewFindings({
     fileId,
     key,
@@ -605,12 +706,28 @@ export default function Home() {
         const surveyType = getAnswer(answers, "4");
 
         return (
-          <section key={submission.id} style={styles.card}>
+          <section
+            key={submission.id}
+            style={{
+              ...styles.card,
+              ...getSurveyTypeCardStyle(surveyType),
+            }}
+          >
             <div style={styles.cardTop}>
               <div>
                 <h2 style={styles.facilityName}>{facility}</h2>
+
+                <div
+                  style={{
+                    ...styles.surveyTypeBadge,
+                    ...getSurveyTypeBadgeStyle(surveyType),
+                  }}
+                >
+                  {surveyType}
+                </div>
+
                 <p style={styles.meta}>
-                  {surveyType} • Intake #{getAnswer(answers, "6")}
+                  Intake #{getAnswer(answers, "6")}
                 </p>
                 <p style={styles.submissionId}>Submission ID: {submission.id}</p>
               </div>
@@ -984,13 +1101,13 @@ const styles = {
 
   card: {
     position: "relative",
-    background: "rgba(255,255,255,0.94)",
     backdropFilter: "blur(12px)",
     padding: "13px",
     borderRadius: "18px",
     marginBottom: "10px",
     boxShadow: "0 8px 22px rgba(15, 23, 42, 0.055)",
     border: "1px solid rgba(226, 232, 240, 0.95)",
+    overflow: "hidden",
   },
 
   cardTop: {
@@ -1005,6 +1122,18 @@ const styles = {
     margin: 0,
     fontSize: "21px",
     letterSpacing: "-0.25px",
+  },
+
+  surveyTypeBadge: {
+    display: "inline-block",
+    marginTop: "6px",
+    marginBottom: "2px",
+    padding: "4px 8px",
+    borderRadius: "999px",
+    fontSize: "10px",
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
   },
 
   meta: {
@@ -1066,14 +1195,14 @@ const styles = {
   },
 
   detailItem: {
-    background: "#f8fafc",
+    background: "rgba(248,250,252,0.9)",
     padding: "8px 10px",
     minHeight: "48px",
   },
 
   commentsItem: {
     gridColumn: "1 / -1",
-    background: "#f8fafc",
+    background: "rgba(248,250,252,0.9)",
     padding: "8px 10px",
   },
 
@@ -1101,7 +1230,7 @@ const styles = {
   },
 
   documentsSection: {
-    background: "#f8fafc",
+    background: "rgba(248,250,252,0.9)",
     padding: "10px",
     borderRadius: "14px",
     border: "1px solid #e2e8f0",
