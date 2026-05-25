@@ -13,8 +13,6 @@ export default function Home() {
   const [parsedDocs, setParsedDocs] = useState({});
   const [loadingDoc, setLoadingDoc] = useState(null);
   const [savedAnalysisCount, setSavedAnalysisCount] = useState(0);
-  const [analyzingMissing, setAnalyzingMissing] = useState(false);
-  const [analyzeResult, setAnalyzeResult] = useState(null);
 
   useEffect(() => {
     async function loadData() {
@@ -115,6 +113,38 @@ export default function Home() {
     }
 
     return field.answer || "No information available";
+  }
+
+  function parseFacilityDate(value) {
+    if (!value || value === "No information available") return null;
+
+    const text = String(value).trim();
+
+    const mmddyyyy =
+      text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/) ||
+      text.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+
+    if (mmddyyyy) {
+      const month = Number(mmddyyyy[1]) - 1;
+      const day = Number(mmddyyyy[2]);
+      const year = Number(mmddyyyy[3]);
+      return new Date(year, month, day);
+    }
+
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function formatDisplayDate(value) {
+    const parsed = parseFacilityDate(value);
+
+    if (!parsed) return value || "No date entered";
+
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    const year = parsed.getFullYear();
+
+    return `${month}-${day}-${year}`;
   }
 
   function getYearFromSubmission(submission) {
@@ -321,37 +351,6 @@ export default function Home() {
     setLoadingDoc(null);
   }
 
-  async function analyzeMissingDocuments() {
-    setAnalyzingMissing(true);
-    setAnalyzeResult(null);
-
-    try {
-      const res = await fetch("/api/analyze-missing", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          limit: 5,
-          origin: window.location.origin,
-        }),
-      });
-
-      const data = await res.json();
-
-      setAnalyzeResult(data);
-
-      await loadSavedAnalysis();
-    } catch (error) {
-      setAnalyzeResult({
-        success: false,
-        error: error.message,
-      });
-    }
-
-    setAnalyzingMissing(false);
-  }
-
   const facilities = useMemo(() => {
     const names = submissions
       .map((s) => s.answers?.["3"]?.answer)
@@ -397,14 +396,6 @@ export default function Home() {
       .map(([, value]) => value)
       .filter((parsed) => parsed && parsed.success !== false);
   }
-
-  const eventsWithFindings = filteredSubmissions.filter((submission) => {
-    const parsedFindings = getParsedFindingsForSubmission(submission.id);
-
-    return parsedFindings.some(
-      (parsed) => parsed.deficiencies && parsed.deficiencies.length > 0
-    );
-  }).length;
 
   const severitySummary = filteredSubmissions.reduce((summary, submission) => {
     const parsedFindings = getParsedFindingsForSubmission(submission.id);
@@ -454,6 +445,48 @@ export default function Home() {
       type,
       count,
     }));
+
+  const weeklySummaryItems = useMemo(() => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    return submissions
+      .filter((submission) => {
+        const facilityMatches =
+          selectedFacility === "All Facilities" ||
+          submission.answers?.["3"]?.answer === selectedFacility;
+
+        if (!facilityMatches) return false;
+
+        const surveyDateValue = getAnswer(submission.answers, "5");
+        const surveyDate = parseFacilityDate(surveyDateValue);
+
+        if (!surveyDate) return false;
+
+        return surveyDate >= sevenDaysAgo && surveyDate <= today;
+      })
+      .sort((a, b) => {
+        const dateA = parseFacilityDate(getAnswer(a.answers, "5"));
+        const dateB = parseFacilityDate(getAnswer(b.answers, "5"));
+
+        return dateB - dateA;
+      })
+      .map((submission) => {
+        const answers = submission.answers;
+
+        return {
+          id: submission.id,
+          facility: getAnswer(answers, "3"),
+          date: formatDisplayDate(getAnswer(answers, "5")),
+          surveyType: getAnswer(answers, "4"),
+          comments: getComments(answers),
+        };
+      });
+  }, [submissions, selectedFacility]);
 
   return (
     <main style={styles.page}>
@@ -513,52 +546,6 @@ export default function Home() {
           </div>
         </div>
 
-        <div style={styles.actionPanel}>
-          <div>
-            <p style={styles.actionTitle}>Batch Analysis</p>
-            <p style={styles.actionText}>
-              Analyze missing regulatory documents in batches of 5 and save the
-              findings to Google Sheets.
-            </p>
-          </div>
-
-          <button
-            onClick={analyzeMissingDocuments}
-            disabled={analyzingMissing}
-            style={{
-              ...styles.analyzeButton,
-              opacity: analyzingMissing ? 0.65 : 1,
-              cursor: analyzingMissing ? "not-allowed" : "pointer",
-            }}
-          >
-            {analyzingMissing ? "Analyzing..." : "Analyze Missing Documents"}
-          </button>
-        </div>
-
-        {analyzeResult && (
-          <div
-            style={
-              analyzeResult.success
-                ? styles.analyzeResultBox
-                : styles.analyzeErrorBox
-            }
-          >
-            {analyzeResult.success ? (
-              <>
-                <strong>Batch complete.</strong> Processed{" "}
-                {analyzeResult.processedCount || 0} document(s). Failed{" "}
-                {analyzeResult.failedCount || 0}. Remaining after run:{" "}
-                {analyzeResult.remainingAfterRun ?? "Unknown"}.
-              </>
-            ) : (
-              <>
-                <strong>Batch failed:</strong>{" "}
-                {analyzeResult.error || "Unknown error"}
-              </>
-            )}
-          </div>
-        )}
-
         <div style={styles.tileGrid}>
           <div style={styles.eventTile}>
             <p style={styles.eventTileLabel}>Survey Events</p>
@@ -580,15 +567,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div style={styles.eventTile}>
-            <p style={styles.eventTileLabel}>Events With Findings</p>
-            <h2 style={styles.eventTileNumber}>{eventsWithFindings}</h2>
-            <p style={styles.savedAnalysisNote}>
-              Saved analyses loaded: {savedAnalysisCount}
-            </p>
-          </div>
-
-          <div style={styles.eventTileWide}>
+          <div style={styles.severityTile}>
             <p style={styles.eventTileLabel}>Severity Summary</p>
 
             <div style={styles.severityList}>
@@ -604,6 +583,33 @@ export default function Home() {
               ) : (
                 <div style={styles.severityEmpty}>
                   No findings reviewed yet
+                </div>
+              )}
+            </div>
+
+            <p style={styles.savedAnalysisNote}>
+              Saved analyses: {savedAnalysisCount}
+            </p>
+          </div>
+
+          <div style={styles.weeklyTile}>
+            <p style={styles.eventTileLabel}>Weekly Summary</p>
+            <p style={styles.weeklySubtext}>Past 7 days from today</p>
+
+            <div style={styles.weeklyList}>
+              {weeklySummaryItems.length > 0 ? (
+                weeklySummaryItems.map((item) => (
+                  <div key={item.id} style={styles.weeklyItem}>
+                    <strong>{item.facility}</strong>: {item.date} -{" "}
+                    {item.surveyType}.{" "}
+                    <span style={styles.weeklyComments}>
+                      Comments: {item.comments}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div style={styles.weeklyEmpty}>
+                  No survey activity entered in the past 7 days.
                 </div>
               )}
             </div>
@@ -794,7 +800,7 @@ const styles = {
     minHeight: "100vh",
     overflow: "hidden",
     background: "#f4f7fb",
-    padding: "28px",
+    padding: "24px",
     fontFamily:
       "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
     color: "#0f172a",
@@ -839,17 +845,17 @@ const styles = {
     background:
       "linear-gradient(135deg, rgba(15, 42, 74, 0.98), rgba(30, 64, 115, 0.95))",
     color: "white",
-    padding: "32px",
-    borderRadius: "26px",
-    marginBottom: "18px",
-    boxShadow: "0 18px 45px rgba(15, 42, 74, 0.22)",
+    padding: "26px 30px",
+    borderRadius: "24px",
+    marginBottom: "16px",
+    boxShadow: "0 16px 38px rgba(15, 42, 74, 0.20)",
     border: "1px solid rgba(255,255,255,0.16)",
   },
 
   title: {
-    fontSize: "46px",
+    fontSize: "42px",
     lineHeight: 1,
-    letterSpacing: "-1.4px",
+    letterSpacing: "-1.2px",
     margin: 0,
     fontWeight: "800",
   },
@@ -858,20 +864,20 @@ const styles = {
     position: "relative",
     display: "grid",
     gridTemplateColumns: "1fr",
-    gap: "14px",
-    marginBottom: "18px",
+    gap: "12px",
+    marginBottom: "16px",
   },
 
   filterGrid: {
     display: "flex",
-    gap: "14px",
+    gap: "12px",
     flexWrap: "wrap",
-    background: "rgba(255,255,255,0.84)",
+    background: "rgba(255,255,255,0.86)",
     backdropFilter: "blur(14px)",
     border: "1px solid rgba(226, 232, 240, 0.9)",
-    padding: "16px",
-    borderRadius: "22px",
-    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.07)",
+    padding: "14px",
+    borderRadius: "20px",
+    boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
   },
 
   label: {
@@ -881,96 +887,51 @@ const styles = {
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     color: "#64748b",
-    marginBottom: "7px",
+    marginBottom: "6px",
   },
 
   select: {
-    padding: "11px 13px",
-    borderRadius: "13px",
+    padding: "10px 12px",
+    borderRadius: "12px",
     border: "1px solid #cbd5e1",
     background: "white",
     fontSize: "14px",
-    minWidth: "250px",
+    minWidth: "240px",
     outline: "none",
-  },
-
-  actionPanel: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "16px",
-    background: "rgba(255,255,255,0.9)",
-    border: "1px solid rgba(226, 232, 240, 0.95)",
-    padding: "16px 18px",
-    borderRadius: "22px",
-    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.07)",
-  },
-
-  actionTitle: {
-    margin: 0,
-    color: "#0f172a",
-    fontWeight: "900",
-    fontSize: "15px",
-  },
-
-  actionText: {
-    margin: "4px 0 0",
-    color: "#64748b",
-    fontSize: "13px",
-    lineHeight: 1.4,
-  },
-
-  analyzeButton: {
-    background: "#0f172a",
-    color: "white",
-    border: "none",
-    padding: "11px 16px",
-    borderRadius: "13px",
-    fontWeight: "900",
-    fontSize: "14px",
-    whiteSpace: "nowrap",
-  },
-
-  analyzeResultBox: {
-    background: "#ecfdf5",
-    color: "#166534",
-    border: "1px solid #bbf7d0",
-    padding: "13px 15px",
-    borderRadius: "16px",
-    fontSize: "14px",
-  },
-
-  analyzeErrorBox: {
-    background: "#fef2f2",
-    color: "#991b1b",
-    border: "1px solid #fecaca",
-    padding: "13px 15px",
-    borderRadius: "16px",
-    fontSize: "14px",
   },
 
   tileGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 1.15fr",
-    gap: "14px",
+    gridTemplateColumns: "1.15fr 0.75fr 2fr",
+    gap: "12px",
+    alignItems: "stretch",
   },
 
   eventTile: {
-    background: "rgba(255,255,255,0.9)",
+    background: "rgba(255,255,255,0.92)",
     backdropFilter: "blur(14px)",
     border: "1px solid rgba(226, 232, 240, 0.95)",
-    padding: "18px",
-    borderRadius: "22px",
-    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.07)",
+    padding: "16px",
+    borderRadius: "20px",
+    boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
   },
 
-  eventTileWide: {
-    background: "rgba(255,255,255,0.9)",
+  severityTile: {
+    background: "rgba(255,255,255,0.92)",
     backdropFilter: "blur(14px)",
     border: "1px solid rgba(226, 232, 240, 0.95)",
-    padding: "18px",
-    borderRadius: "22px",
-    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.07)",
+    padding: "16px",
+    borderRadius: "20px",
+    boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
+  },
+
+  weeklyTile: {
+    background: "rgba(255,255,255,0.92)",
+    backdropFilter: "blur(14px)",
+    border: "1px solid rgba(226, 232, 240, 0.95)",
+    padding: "16px",
+    borderRadius: "20px",
+    boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
   },
 
   eventTileLabel: {
@@ -983,132 +944,170 @@ const styles = {
   },
 
   eventTileNumber: {
-    fontSize: "40px",
-    margin: "5px 0 0",
+    fontSize: "38px",
+    margin: "4px 0 0",
     letterSpacing: "-1px",
   },
 
   savedAnalysisNote: {
-    margin: "8px 0 0",
+    margin: "9px 0 0",
     color: "#64748b",
-    fontSize: "13px",
+    fontSize: "12px",
     fontWeight: "700",
   },
 
   breakdownList: {
-    marginTop: "10px",
+    marginTop: "9px",
     display: "grid",
-    gap: "6px",
+    gap: "5px",
   },
 
   breakdownItem: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: "12px",
+    gap: "10px",
     color: "#475569",
     fontSize: "13px",
-    lineHeight: 1.3,
+    lineHeight: 1.25,
     fontWeight: "700",
     borderTop: "1px solid #e2e8f0",
-    paddingTop: "7px",
+    paddingTop: "6px",
   },
 
   severityList: {
-    marginTop: "10px",
+    marginTop: "9px",
     display: "grid",
-    gap: "7px",
+    gap: "5px",
   },
 
   severityItem: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: "12px",
+    gap: "10px",
     color: "#1e293b",
-    fontSize: "17px",
+    fontSize: "15px",
     fontWeight: "800",
     borderTop: "1px solid #e2e8f0",
-    paddingTop: "7px",
+    paddingTop: "6px",
   },
 
   severityEmpty: {
     marginTop: "10px",
     color: "#64748b",
-    fontSize: "15px",
+    fontSize: "13px",
     fontWeight: "700",
+    lineHeight: 1.35,
+  },
+
+  weeklySubtext: {
+    margin: "4px 0 0",
+    color: "#94a3b8",
+    fontSize: "12px",
+    fontWeight: "700",
+  },
+
+  weeklyList: {
+    marginTop: "10px",
+    display: "grid",
+    gap: "8px",
+    maxHeight: "190px",
+    overflowY: "auto",
+    paddingRight: "4px",
+  },
+
+  weeklyItem: {
+    borderTop: "1px solid #e2e8f0",
+    paddingTop: "8px",
+    color: "#334155",
+    fontSize: "13px",
+    lineHeight: 1.45,
+  },
+
+  weeklyComments: {
+    color: "#64748b",
+  },
+
+  weeklyEmpty: {
+    color: "#64748b",
+    fontSize: "13px",
+    fontWeight: "700",
+    lineHeight: 1.4,
+    borderTop: "1px solid #e2e8f0",
+    paddingTop: "8px",
   },
 
   card: {
     position: "relative",
-    background: "rgba(255,255,255,0.92)",
+    background: "rgba(255,255,255,0.93)",
     backdropFilter: "blur(12px)",
-    padding: "22px",
-    borderRadius: "26px",
-    marginBottom: "18px",
-    boxShadow: "0 14px 34px rgba(15, 23, 42, 0.075)",
+    padding: "18px",
+    borderRadius: "24px",
+    marginBottom: "16px",
+    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.065)",
     border: "1px solid rgba(226, 232, 240, 0.95)",
   },
 
   cardTop: {
     display: "flex",
     justifyContent: "space-between",
-    gap: "18px",
-    marginBottom: "16px",
+    gap: "16px",
+    marginBottom: "14px",
     alignItems: "flex-start",
   },
 
   facilityName: {
     margin: 0,
-    fontSize: "27px",
-    letterSpacing: "-0.4px",
+    fontSize: "25px",
+    letterSpacing: "-0.35px",
   },
 
   meta: {
     color: "#64748b",
-    marginTop: "5px",
+    marginTop: "4px",
     marginBottom: 0,
-    fontSize: "15px",
+    fontSize: "14px",
   },
 
   submissionId: {
     color: "#94a3b8",
     fontSize: "12px",
-    marginTop: "5px",
+    marginTop: "4px",
     marginBottom: 0,
   },
 
   uploadedBadge: {
     background: "#dcfce7",
     color: "#166534",
-    padding: "9px 13px",
+    padding: "8px 12px",
     borderRadius: "999px",
     fontWeight: "800",
     height: "fit-content",
     whiteSpace: "nowrap",
-    fontSize: "13px",
+    fontSize: "12px",
   },
 
   warningBadge: {
     background: "#fef3c7",
     color: "#92400e",
-    padding: "9px 13px",
+    padding: "8px 12px",
     borderRadius: "999px",
     fontWeight: "800",
     height: "fit-content",
     whiteSpace: "nowrap",
-    fontSize: "13px",
+    fontSize: "12px",
   },
 
   missingBadge: {
     background: "#fee2e2",
     color: "#991b1b",
-    padding: "9px 13px",
+    padding: "8px 12px",
     borderRadius: "999px",
     fontWeight: "800",
     height: "fit-content",
     whiteSpace: "nowrap",
-    fontSize: "13px",
+    fontSize: "12px",
   },
 
   detailsGrid: {
@@ -1116,51 +1115,51 @@ const styles = {
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     gap: "1px",
     background: "#e2e8f0",
-    borderRadius: "18px",
+    borderRadius: "16px",
     overflow: "hidden",
-    marginBottom: "16px",
+    marginBottom: "14px",
     border: "1px solid #e2e8f0",
   },
 
   detailItem: {
     background: "#f8fafc",
-    padding: "14px 16px",
-    minHeight: "66px",
+    padding: "12px 14px",
+    minHeight: "58px",
   },
 
   commentsItem: {
     gridColumn: "1 / -1",
     background: "#f8fafc",
-    padding: "14px 16px",
+    padding: "12px 14px",
   },
 
   detailLabel: {
     display: "block",
-    fontSize: "11px",
+    fontSize: "10px",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     color: "#64748b",
     fontWeight: "800",
-    marginBottom: "6px",
+    marginBottom: "5px",
   },
 
   detailValue: {
     margin: 0,
-    fontSize: "15px",
+    fontSize: "14px",
     color: "#0f172a",
   },
 
   commentValue: {
     margin: 0,
-    fontSize: "14px",
+    fontSize: "13px",
     color: "#334155",
-    lineHeight: 1.45,
+    lineHeight: 1.4,
   },
 
   documentsSection: {
     background: "#f8fafc",
-    padding: "16px",
-    borderRadius: "20px",
+    padding: "14px",
+    borderRadius: "18px",
     border: "1px solid #e2e8f0",
   },
 
@@ -1168,75 +1167,76 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: "10px",
+    marginBottom: "8px",
   },
 
   sectionTitle: {
     margin: 0,
-    fontSize: "20px",
+    fontSize: "19px",
   },
 
   noDocs: {
     color: "#64748b",
-    lineHeight: 1.45,
+    lineHeight: 1.4,
     margin: 0,
+    fontSize: "13px",
   },
 
   missingDocumentBox: {
     background: "#fff7ed",
     color: "#9a3412",
     border: "1px solid #fed7aa",
-    borderRadius: "14px",
-    padding: "12px",
-    marginBottom: "12px",
-    fontSize: "14px",
+    borderRadius: "13px",
+    padding: "10px 12px",
+    marginBottom: "10px",
+    fontSize: "13px",
   },
 
   documentList: {
     display: "grid",
-    gap: "12px",
+    gap: "10px",
   },
 
   documentBox: {
     background: "white",
     border: "1px solid #e5e7eb",
-    borderRadius: "16px",
-    padding: "14px",
+    borderRadius: "15px",
+    padding: "12px",
   },
 
   documentHeader: {
     display: "flex",
     justifyContent: "space-between",
-    gap: "12px",
-    marginBottom: "10px",
+    gap: "10px",
+    marginBottom: "9px",
   },
 
   documentName: {
     margin: 0,
     fontWeight: "800",
-    fontSize: "15px",
+    fontSize: "14px",
   },
 
   savedBadgeText: {
-    margin: "4px 0 0",
+    margin: "3px 0 0",
     color: "#166534",
-    fontSize: "12px",
+    fontSize: "11px",
     fontWeight: "800",
   },
 
   pdfBadge: {
     background: "#dbeafe",
     color: "#1e40af",
-    padding: "5px 9px",
+    padding: "4px 8px",
     borderRadius: "999px",
     fontWeight: "800",
     height: "fit-content",
-    fontSize: "11px",
+    fontSize: "10px",
   },
 
   buttonRow: {
     display: "flex",
-    gap: "9px",
+    gap: "8px",
     flexWrap: "wrap",
   },
 
@@ -1244,29 +1244,29 @@ const styles = {
     display: "inline-block",
     background: "#2563eb",
     color: "white",
-    padding: "9px 13px",
-    borderRadius: "11px",
+    padding: "8px 12px",
+    borderRadius: "10px",
     textDecoration: "none",
     fontWeight: "800",
-    fontSize: "14px",
+    fontSize: "13px",
   },
 
   parseButton: {
     background: "#111827",
     color: "white",
-    padding: "9px 13px",
-    borderRadius: "11px",
+    padding: "8px 12px",
+    borderRadius: "10px",
     border: "none",
     fontWeight: "800",
     cursor: "pointer",
-    fontSize: "14px",
+    fontSize: "13px",
   },
 
   parseResult: {
-    marginTop: "12px",
-    padding: "12px",
+    marginTop: "10px",
+    padding: "10px 12px",
     background: "#eef4ff",
-    borderRadius: "13px",
+    borderRadius: "12px",
     border: "1px solid #dbeafe",
   },
 
@@ -1275,29 +1275,29 @@ const styles = {
   },
 
   findingLine: {
-    margin: "0 0 9px",
-    fontSize: "14px",
+    margin: "0 0 7px",
+    fontSize: "13px",
   },
 
   deficiencyList: {
-    marginTop: "10px",
-    marginBottom: "8px",
-    fontSize: "14px",
+    marginTop: "8px",
+    marginBottom: "6px",
+    fontSize: "13px",
   },
 
   pillWrap: {
-    marginTop: "8px",
+    marginTop: "7px",
   },
 
   deficiencyPill: {
     display: "inline-block",
-    marginRight: "7px",
-    marginBottom: "7px",
+    marginRight: "6px",
+    marginBottom: "6px",
     background: "#fee2e2",
     color: "#991b1b",
-    padding: "7px 11px",
+    padding: "6px 10px",
     borderRadius: "999px",
     fontWeight: "800",
-    fontSize: "13px",
+    fontSize: "12px",
   },
 };
