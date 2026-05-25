@@ -5,14 +5,14 @@ import { useMemo, useState } from "react";
 const CURRENT_YEAR = new Date().getFullYear();
 
 const DIVISIONS = {
-  "Erick's Division": [
+  "Erick Herradura's Division": [
     "Erick Herradura",
     "Beth Clark",
     "Jinkee Javier",
     "Guillermo Vicencio",
-    "Brenda Washington",
+    "Brenda Rojas",
   ],
-  "Donna's Division": [
+  "Donna Kimura's Division": [
     "Donna Kimura",
     "Gerly Orona",
     "Melissa Acuna",
@@ -24,7 +24,7 @@ const CONSULTANT_PHOTOS = {
   "Erick Herradura": "/Erick Herradura.jpg",
   "Donna Kimura": "/Donna Kimura.jpg",
   "Beth Clark": "/Beth Clark.jpg",
-  "Brenda Washington": "/Brenda Washington.jpg",
+  "Brenda Rojas": "/Brenda Washington.jpg",
   "Gerly Orona": "/Gerly Orona.jpg",
   "Guillermo Vicencio": "/Guillermo Vicencio.jpg",
   "Jinkee Javier": "/Jinkee Javier.jpg",
@@ -33,89 +33,130 @@ const CONSULTANT_PHOTOS = {
 };
 
 const FACILITY_CONSULTANT_MAP = {
-  // Jinkee
+  // Erick Herradura
+  "PARK RETIREMENT": "Erick Herradura",
+  "PARK REGENCY RETIREMENT CENTER": "Erick Herradura",
+
+  // Donna Kimura
+  "BLOSSOM GROVE": "Donna Kimura",
+  "DEL MAR": "Donna Kimura",
+  "DEL MAR CONVALESCENT": "Donna Kimura",
+  "DEL MAR CONVALESCENT CENTER": "Donna Kimura",
+
+  // Brenda Rojas
+  "NORTH VALLEY": "Brenda Rojas",
+  "NORTH VALLEY NURSING CENTER": "Brenda Rojas",
+  "HERITAGE MANOR": "Brenda Rojas",
+  "PACIFIC": "Brenda Rojas",
+  "PACIFIC POST-ACUTE": "Brenda Rojas",
+  "PACIFIC POST ACUTE": "Brenda Rojas",
+  "MONTEREY PARK": "Brenda Rojas",
+  "MONTEREY PARK CONV HOSP": "Brenda Rojas",
+  "MONTEREY PARK CONVALESCENT HOSPITAL": "Brenda Rojas",
+  "TARZANA": "Brenda Rojas",
+  "TARZANA HEALTH AND REHABILITATION CENTER": "Brenda Rojas",
+  "VINELAND": "Brenda Rojas",
+  "VINELAND POST ACUTE": "Brenda Rojas",
+  "VINELAND POST-ACUTE": "Brenda Rojas",
+  "THE MEADOWS ON SUNSET": "Brenda Rojas",
+  "SUNSET MANOR": "Brenda Rojas",
+
+  // Jinkee Javier
+  "COURTYARD": "Jinkee Javier",
   "COURTYARD CARE CENTER": "Jinkee Javier",
+  "CRESCENT CITY": "Jinkee Javier",
   "CRESCENT CITY CARE CENTER": "Jinkee Javier",
+  "DIAMOND RIDGE": "Jinkee Javier",
   "DIAMOND RIDGE HEALTHCARE CENTER": "Jinkee Javier",
+  "EXCELL": "Jinkee Javier",
   "EXCEL HEALTHCARE CENTER": "Jinkee Javier",
+  "MADERA": "Jinkee Javier",
   "MADEIRA CARE CENTER": "Jinkee Javier",
-  "MISSION CARMICHAEL HEALTHCARE CENTER": "Jinkee Javier",
   "MISSION CARMICHAEL": "Jinkee Javier",
-  "ALCOTT REHABILITATION HOSPITAL": "Jinkee Javier",
-  "COLLEGE VISTA POST-ACUTE": "Jinkee Javier",
-  "COLLEGE VISTA POST ACUTE": "Jinkee Javier",
-  "COUNTRY OAKS CARE CENTER": "Jinkee Javier",
-  "COUNTRY OAKS CARE CENTER SUB-ACUTE": "Jinkee Javier",
-  "COUNTRY OAKS CARE CENTER SUB ACUTE": "Jinkee Javier",
+  "MISSION CARMICHAEL HEALTHCARE CENTER": "Jinkee Javier",
 
-  // Beth
+  // Beth Clark
+  "ALCOTT": "Beth Clark",
+  "ALCOTT REHABILITATION HOSPITAL": "Beth Clark",
+  "COUNTRY OAKS": "Beth Clark",
+  "COUNTRY OAKS CARE CENTER": "Beth Clark",
+  "COUNTRY OAKS CARE CENTER SUB-ACUTE": "Beth Clark",
+  "COUNTRY OAKS CARE CENTER SUB ACUTE": "Beth Clark",
+  "COLLEGE VISTA": "Beth Clark",
+  "COLLEGE VISTA POST-ACUTE": "Beth Clark",
+  "COLLEGE VISTA POST ACUTE": "Beth Clark",
+  "POMONA VISTA": "Beth Clark",
   "POMONA VISTA CARE CENTER": "Beth Clark",
+  "SUN MAR NURSING": "Beth Clark",
   "SUN MAR NURSING CENTER": "Beth Clark",
-  "SUNNYSIDE CONV HOSPITAL": "Beth Clark",
-  "SUNNYSIDE CONVALESCENT HOSPITAL": "Beth Clark",
 
-  // Guillermo
+  // Guillermo Vicencio
+  "ANAHEIM": "Guillermo Vicencio",
   "ANAHEIM HEALTHCARE CENTER": "Guillermo Vicencio",
+  "BONITA HILLS": "Guillermo Vicencio",
   "BONITA HILLS POST-ACUTE": "Guillermo Vicencio",
   "BONITA HILLS POST ACUTE": "Guillermo Vicencio",
+  "FRENCH PARK": "Guillermo Vicencio",
   "FRENCH PARK CARE CENTER": "Guillermo Vicencio",
+  "GORDON LANE": "Guillermo Vicencio",
   "GORDON LANE CARE CENTER": "Guillermo Vicencio",
+  "PARK REGENCY CARE": "Guillermo Vicencio",
   "PARK REGENCY CARE CENTER": "Guillermo Vicencio",
+  "PELICAN RIDGE": "Guillermo Vicencio",
   "PELICAN RIDGE POST-ACUTE": "Guillermo Vicencio",
   "PELICAN RIDGE POST ACUTE": "Guillermo Vicencio",
 
-  // Brenda
-  "HERITAGE MANOR": "Brenda Washington",
-  "MONTEREY PARK CONV HOSP": "Brenda Washington",
-  "MONTEREY PARK CONVALESCENT HOSPITAL": "Brenda Washington",
-  "NORBY VALLEY NURSING CENTER": "Brenda Washington",
-  "PACIFIC POST-ACUTE": "Brenda Washington",
-  "PACIFIC POST ACUTE": "Brenda Washington",
-  "TARZANA HEALTH AND REHABILITATION CENTER": "Brenda Washington",
-  "THE MEADOWS ON SUNSET": "Brenda Washington",
-  "WHITTIER POST-ACUTE": "Brenda Washington",
-  "WHITTIER POST ACUTE": "Brenda Washington",
-
-  // Melissa
+  // Melissa Acuna
+  "CITRUS": "Melissa Acuna",
   "CITRUS NURSING CENTER": "Melissa Acuna",
+  "CCRC": "Melissa Acuna",
   "COMMUNITY CARE AND REHABILITATION CENTER": "Melissa Acuna",
-  "MERCED LAKE POST-ACUTE": "Melissa Acuna",
-  "MERCED LAKE POST ACUTE": "Melissa Acuna",
-  "MISSION CARE CENTER": "Melissa Acuna",
-  "TALBOUC HILLS POST-ACUTE": "Melissa Acuna",
-  "TALBOUC HILLS POST ACUTE": "Melissa Acuna",
+  "MENIFEE": "Melissa Acuna",
+  "MENIFEE LAKES POST-ACUTE": "Melissa Acuna",
+  "MENIFEE LAKES POST ACUTE": "Melissa Acuna",
+  "TRABUCO": "Melissa Acuna",
+  "TRABUCO HILLS POST-ACUTE": "Melissa Acuna",
+  "TRABUCO HILLS POST ACUTE": "Melissa Acuna",
+  "VICTORIA": "Melissa Acuna",
   "VICTORIA CARE CENTER": "Melissa Acuna",
+  "MISSION CARE": "Melissa Acuna",
+  "MISSION CARE CENTER": "Melissa Acuna",
 
-  // Gerly
+  // Gerly Orona
+  "EXTENDED CARE": "Gerly Orona",
   "EXTENDED CARE HOSPITAL OF RIVERSIDE": "Gerly Orona",
+  "GARDEN PARK": "Gerly Orona",
   "GARDEN PARK CARE CENTER": "Gerly Orona",
+  "MOUNTAIN VIEW": "Gerly Orona",
   "MOUNTAIN VIEW POST-ACUTE": "Gerly Orona",
   "MOUNTAIN VIEW POST ACUTE": "Gerly Orona",
+  "OCEAN VIEW": "Gerly Orona",
   "OCEAN VIEW POST-ACUTE": "Gerly Orona",
   "OCEAN VIEW POST ACUTE": "Gerly Orona",
+  "VILLA RANCHO BERNARDO": "Gerly Orona",
   "VILLA RANCHO BERNARDO CARE CENTER": "Gerly Orona",
+  "VISTA VIEW": "Gerly Orona",
   "VISTA VIEW POST-ACUTE": "Gerly Orona",
   "VISTA VIEW POST ACUTE": "Gerly Orona",
 
-  // Sammy
-  "COTTAGE CREST POST-ACUTE": "Sammy Balisbis",
-  "COTTAGE CREST POST ACUTE": "Sammy Balisbis",
-  "PARAMOUNT CONVALESCENT HOSPITAL": "Sammy Balisbis",
-  "SEAVIEW CARE CENTER": "Sammy Balisbis",
-  "SUNNY HILLS POST-ACUTE": "Sammy Balisbis",
-  "SUNNY HILLS POST ACUTE": "Sammy Balisbis",
-  "THE GROVE POST-ACUTE": "Sammy Balisbis",
-  "THE GROVE POST ACUTE": "Sammy Balisbis",
+  // Sammy Balisbis
+  "VILLA DEL SOL": "Sammy Balisbis",
   "VILLA DEL SOL POST-ACUTE": "Sammy Balisbis",
   "VILLA DEL SOL POST ACUTE": "Sammy Balisbis",
-  "PARK REGENCY RETIREMENT CENTER": "Sammy Balisbis",
-
-  // Erick Herradura
-  "BLOSSOM GROVE": "Erick Herradura",
-
-  // Donna Kimura
-  "DEL MAR CONVALESCENT": "Donna Kimura",
-  "DEL MAR CONVALESCENT CENTER": "Donna Kimura",
+  "THE GROVE": "Sammy Balisbis",
+  "THE GROVE POST-ACUTE": "Sammy Balisbis",
+  "THE GROVE POST ACUTE": "Sammy Balisbis",
+  "SIERRA VIEW": "Sammy Balisbis",
+  "SIERRA VIEW CARE CENTER": "Sammy Balisbis",
+  "COTTAGE CREST": "Sammy Balisbis",
+  "COTTAGE CREST POST-ACUTE": "Sammy Balisbis",
+  "COTTAGE CREST POST ACUTE": "Sammy Balisbis",
+  "PARAMOUNT": "Sammy Balisbis",
+  "PARAMOUNT CONVALESCENT HOSPITAL": "Sammy Balisbis",
+  "SUNNY HILLS": "Sammy Balisbis",
+  "SUNNY HILLS POST-ACUTE": "Sammy Balisbis",
+  "SUNNY HILLS POST ACUTE": "Sammy Balisbis",
+  "EDUTRACK": "Sammy Balisbis",
 };
 
 const DEFICIENCY_POINTS = {
@@ -252,9 +293,10 @@ function calculateSubmissionPoints(parsedFindings) {
 }
 
 function ConsultantAvatar({ consultant, size = 40 }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const photo = CONSULTANT_PHOTOS[consultant];
 
-  if (!photo) {
+  if (!photo || imageFailed) {
     return (
       <div
         style={{
@@ -268,16 +310,21 @@ function ConsultantAvatar({ consultant, size = 40 }) {
           color: "#1e40af",
           fontWeight: "900",
           flexShrink: 0,
+          fontSize: size <= 40 ? "12px" : "14px",
         }}
       >
-        {String(consultant || "?").slice(0, 1)}
+        {String(consultant || "?")
+          .split(" ")
+          .map((part) => part[0])
+          .join("")
+          .slice(0, 2)}
       </div>
     );
   }
 
   return (
     <img
-      src={photo}
+      src={encodeURI(photo)}
       alt={consultant}
       style={{
         width: size,
@@ -287,10 +334,9 @@ function ConsultantAvatar({ consultant, size = 40 }) {
         border: "2px solid white",
         boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
         flexShrink: 0,
+        background: "#e2e8f0",
       }}
-      onError={(event) => {
-        event.currentTarget.style.display = "none";
-      }}
+      onError={() => setImageFailed(true)}
     />
   );
 }
@@ -500,7 +546,7 @@ export default function WeeklySummaryByDivision({
                 {Object.entries(consultants).map(([consultant, items]) => (
                   <div key={consultant} style={styles.consultantCard}>
                     <div style={styles.consultantHeader}>
-                      <ConsultantAvatar consultant={consultant} size={40} />
+                      <ConsultantAvatar consultant={consultant} size={42} />
 
                       <div>
                         <p style={styles.consultantName}>{consultant}</p>
@@ -553,7 +599,7 @@ export default function WeeklySummaryByDivision({
 
                     <ConsultantAvatar
                       consultant={consultant.consultant}
-                      size={46}
+                      size={48}
                     />
 
                     <div style={styles.rankNameBlock}>
