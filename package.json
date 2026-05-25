@@ -5,10 +5,10 @@
     "start": "next start"
   },
   "dependencies": {
-    "next": "latest",
-    "react": "latest",
-    "react-dom": "latest",
     "lucide-react": "latest",
-    "pdf-parse": "latest"
+    "next": "latest",
+    "pdf-parse": "1.1.1",
+    "react": "latest",
+    "react-dom": "latest"
   }
 }
