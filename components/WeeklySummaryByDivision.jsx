@@ -69,16 +69,21 @@ const CONSULTANT_PHOTOS = {
 };
 
 const FACILITY_CONSULTANT_MAP = {
+  // Erick Herradura
   "PARK RETIREMENT": "Erick Herradura",
   "PARK REGENCY RETIREMENT CENTER": "Erick Herradura",
 
+  // Donna Kimura
   "BLOSSOM GROVE": "Donna Kimura",
   "DEL MAR": "Donna Kimura",
   "DEL MAR CONVALESCENT": "Donna Kimura",
   "DEL MAR CONVALESCENT CENTER": "Donna Kimura",
 
+  // Brenda Rojas
   "NORTH VALLEY": "Brenda Rojas",
   "NORTH VALLEY NURSING CENTER": "Brenda Rojas",
+  "NORBY VALLEY": "Brenda Rojas",
+  "NORBY VALLEY NURSING CENTER": "Brenda Rojas",
   "HERITAGE MANOR": "Brenda Rojas",
   "PACIFIC": "Brenda Rojas",
   "PACIFIC POST-ACUTE": "Brenda Rojas",
@@ -94,6 +99,7 @@ const FACILITY_CONSULTANT_MAP = {
   "THE MEADOWS ON SUNSET": "Brenda Rojas",
   "SUNSET MANOR": "Brenda Rojas",
 
+  // Jinkee Javier
   "COURTYARD": "Jinkee Javier",
   "COURTYARD CARE CENTER": "Jinkee Javier",
   "CRESCENT CITY": "Jinkee Javier",
@@ -101,12 +107,15 @@ const FACILITY_CONSULTANT_MAP = {
   "DIAMOND RIDGE": "Jinkee Javier",
   "DIAMOND RIDGE HEALTHCARE CENTER": "Jinkee Javier",
   "EXCELL": "Jinkee Javier",
+  "EXCEL": "Jinkee Javier",
   "EXCEL HEALTHCARE CENTER": "Jinkee Javier",
   "MADERA": "Jinkee Javier",
+  "MADEIRA": "Jinkee Javier",
   "MADEIRA CARE CENTER": "Jinkee Javier",
   "MISSION CARMICHAEL": "Jinkee Javier",
   "MISSION CARMICHAEL HEALTHCARE CENTER": "Jinkee Javier",
 
+  // Beth Clark
   "ALCOTT": "Beth Clark",
   "ALCOTT REHABILITATION HOSPITAL": "Beth Clark",
   "COUNTRY OAKS": "Beth Clark",
@@ -120,8 +129,11 @@ const FACILITY_CONSULTANT_MAP = {
   "POMONA VISTA CARE CENTER": "Beth Clark",
   "SUN MAR NURSING": "Beth Clark",
   "SUN MAR NURSING CENTER": "Beth Clark",
-  "SUNSET MANOR": "Beth Clark",
+  "SUNNYSIDE": "Beth Clark",
+  "SUNNYSIDE CONV HOSPITAL": "Beth Clark",
+  "SUNNYSIDE CONVALESCENT HOSPITAL": "Beth Clark",
 
+  // Guillermo Vicencio
   "ANAHEIM": "Guillermo Vicencio",
   "ANAHEIM HEALTHCARE CENTER": "Guillermo Vicencio",
   "BONITA HILLS": "Guillermo Vicencio",
@@ -137,10 +149,12 @@ const FACILITY_CONSULTANT_MAP = {
   "PELICAN RIDGE POST-ACUTE": "Guillermo Vicencio",
   "PELICAN RIDGE POST ACUTE": "Guillermo Vicencio",
 
+  // Melissa Acuna
   "CITRUS": "Melissa Acuna",
   "CITRUS NURSING CENTER": "Melissa Acuna",
   "CCRC": "Melissa Acuna",
   "COMMUNITY CARE AND REHABILITATION CENTER": "Melissa Acuna",
+  "COMMUNITY CARE": "Melissa Acuna",
   "MENIFEE": "Melissa Acuna",
   "MENIFEE LAKES POST-ACUTE": "Melissa Acuna",
   "MENIFEE LAKES POST ACUTE": "Melissa Acuna",
@@ -152,6 +166,7 @@ const FACILITY_CONSULTANT_MAP = {
   "MISSION CARE": "Melissa Acuna",
   "MISSION CARE CENTER": "Melissa Acuna",
 
+  // Gerly Orona
   "EXTENDED CARE": "Gerly Orona",
   "EXTENDED CARE HOSPITAL OF RIVERSIDE": "Gerly Orona",
   "GARDEN PARK": "Gerly Orona",
@@ -168,6 +183,7 @@ const FACILITY_CONSULTANT_MAP = {
   "VISTA VIEW POST-ACUTE": "Gerly Orona",
   "VISTA VIEW POST ACUTE": "Gerly Orona",
 
+  // Sammy Balisbis
   "VILLA DEL SOL": "Sammy Balisbis",
   "VILLA DEL SOL POST-ACUTE": "Sammy Balisbis",
   "VILLA DEL SOL POST ACUTE": "Sammy Balisbis",
@@ -184,6 +200,8 @@ const FACILITY_CONSULTANT_MAP = {
   "SUNNY HILLS": "Sammy Balisbis",
   "SUNNY HILLS POST-ACUTE": "Sammy Balisbis",
   "SUNNY HILLS POST ACUTE": "Sammy Balisbis",
+  "SEAVIEW": "Sammy Balisbis",
+  "SEAVIEW CARE CENTER": "Sammy Balisbis",
   "EDUTRACK": "Sammy Balisbis",
 };
 
@@ -251,6 +269,22 @@ function getSeverityPoints(scopeSeverity) {
   return DEFICIENCY_POINTS[severity] ?? 0;
 }
 
+function formatDateForDisplay(value) {
+  if (!value) return "No date entered";
+
+  const parsed = new Date(value);
+
+  if (!Number.isNaN(parsed.getTime())) {
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    const year = parsed.getFullYear();
+
+    return `${month}-${day}-${year}`;
+  }
+
+  return value;
+}
+
 function getYearFromDateValue(value) {
   if (!value) return null;
 
@@ -275,14 +309,73 @@ function getParsedFindingsForSubmission(parsedDocs, submissionId) {
     .filter((parsed) => parsed && parsed.success !== false);
 }
 
+function normalizeDeficiencyList(parsed) {
+  if (!parsed || parsed.noDeficiencyLetter) return [];
+
+  if (Array.isArray(parsed.deficiencies) && parsed.deficiencies.length > 0) {
+    return parsed.deficiencies
+      .map((deficiency) => ({
+        ftag:
+          deficiency.ftag ||
+          deficiency.tag ||
+          deficiency.fTag ||
+          deficiency.FTag ||
+          null,
+        scopeSeverity:
+          deficiency.scopeSeverity ||
+          deficiency.severity ||
+          deficiency.scopeAndSeverity ||
+          deficiency.scope_severity ||
+          null,
+      }))
+      .filter((item) => item.ftag);
+  }
+
+  if (Array.isArray(parsed.ftags) && parsed.ftags.length > 0) {
+    return parsed.ftags
+      .map((item) => {
+        const text = String(item || "").trim();
+        const match = text.match(/\b(F\d{3,4})\b\s*[-–—:]?\s*([A-L])?/i);
+
+        return {
+          ftag: match?.[1]?.toUpperCase() || text,
+          scopeSeverity: match?.[2]?.toUpperCase() || null,
+        };
+      })
+      .filter((item) => item.ftag);
+  }
+
+  const summaryText = [
+    parsed.deficiencySummary,
+    parsed.severitySummary,
+    parsed.findingsSummary,
+    parsed.summary,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  if (summaryText) {
+    const matches = Array.from(
+      summaryText.matchAll(/\b(F\d{3,4})\b\s*[-–—:]?\s*([A-L])?/gi)
+    );
+
+    return matches.map((match) => ({
+      ftag: match[1].toUpperCase(),
+      scopeSeverity: match[2]?.toUpperCase() || null,
+    }));
+  }
+
+  return [];
+}
+
 function calculateSubmissionPoints(parsedFindings) {
   let totalPoints = 0;
   let deficiencyCount = 0;
 
   parsedFindings.forEach((parsed) => {
-    if (parsed.noDeficiencyLetter) return;
+    const deficiencies = normalizeDeficiencyList(parsed);
 
-    (parsed.deficiencies || []).forEach((deficiency) => {
+    deficiencies.forEach((deficiency) => {
       const severity = String(deficiency.scopeSeverity || "")
         .trim()
         .toUpperCase();
@@ -550,7 +643,10 @@ export default function WeeklySummaryByDivision({
                       #{consultant.rank}
                     </div>
 
-                    <ConsultantAvatar consultant={consultant.consultant} size={112} />
+                    <ConsultantAvatar
+                      consultant={consultant.consultant}
+                      size={112}
+                    />
 
                     <div style={styles.standingNameBlock}>
                       <p style={styles.standingConsultantName}>
@@ -939,7 +1035,8 @@ const styles = {
 
   standingRankCard: {
     display: "grid",
-    gridTemplateColumns: "minmax(280px, 0.9fr) minmax(420px, 1.4fr) minmax(160px, 0.35fr)",
+    gridTemplateColumns:
+      "minmax(280px, 0.9fr) minmax(420px, 1.4fr) minmax(160px, 0.35fr)",
     gap: "18px",
     alignItems: "center",
     background: "#ffffff",
