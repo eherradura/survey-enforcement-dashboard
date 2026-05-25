@@ -59,80 +59,121 @@ function extractIntakeNumber(fileName, text) {
   return intakeMatch[2] || intakeMatch[0];
 }
 
+function addDeficiency(deficienciesByFtag, ftag, scopeSeverity) {
+  if (!ftag || ftag === "F000") return;
+
+  const cleanSeverity = scopeSeverity
+    ? String(scopeSeverity).trim().toUpperCase()
+    : null;
+
+  if (!cleanSeverity || !/^[A-L]$/.test(cleanSeverity)) return;
+
+  const existing = deficienciesByFtag.get(ftag);
+
+  if (
+    !existing ||
+    severityRank(cleanSeverity) > severityRank(existing.scopeSeverity)
+  ) {
+    deficienciesByFtag.set(ftag, {
+      ftag,
+      scopeSeverity: cleanSeverity,
+    });
+  }
+}
+
 function extractDeficiencies(text) {
   const normalized = normalizeText(text);
+  const flattened = normalized.replace(/\n/g, " ");
+
+  const deficienciesByFtag = new Map();
 
   const lines = normalized
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const deficienciesByFtag = new Map();
-
+  // Pattern 1: F689 ... SS=E or SS: E nearby
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-
     const ftagMatches = [...line.matchAll(/\bF\s*0?(\d{3})\b/gi)];
 
     for (const ftagMatch of ftagMatches) {
       const ftag = normalizeFtag(ftagMatch[1]);
 
-      if (ftag === "F000") {
-        continue;
-      }
+      if (ftag === "F000") continue;
 
-      const nearbyText = lines.slice(i, i + 14).join(" ");
+      const nearbyText = lines.slice(i, i + 20).join(" ");
 
       const ssMatch =
-        nearbyText.match(/\bSS\s*[:=]\s*([A-L])\b/i) ||
-        nearbyText.match(/\bS\/S\s*[:=]\s*([A-L])\b/i) ||
-        nearbyText.match(/\bScope\s*\/?\s*Severity\s*[:=]\s*([A-L])\b/i);
+        nearbyText.match(/\bSS\s*[:=]?\s*([A-L])\b/i) ||
+        nearbyText.match(/\bS\/S\s*[:=]?\s*([A-L])\b/i) ||
+        nearbyText.match(/\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/i) ||
+        nearbyText.match(/\bScope\s+and\s+Severity\s*[:=]?\s*([A-L])\b/i);
 
-      const scopeSeverity = ssMatch ? ssMatch[1].toUpperCase() : null;
-
-      if (!scopeSeverity) {
-        continue;
-      }
-
-      const existing = deficienciesByFtag.get(ftag);
-
-      if (
-        !existing ||
-        severityRank(scopeSeverity) > severityRank(existing.scopeSeverity)
-      ) {
-        deficienciesByFtag.set(ftag, {
-          ftag,
-          scopeSeverity,
-        });
+      if (ssMatch) {
+        addDeficiency(deficienciesByFtag, ftag, ssMatch[1]);
       }
     }
   }
 
-  const flattened = normalized.replace(/\n/g, " ");
+  // Pattern 2: compact same-block F689 ... SS E
+  const compactPatterns = [
+    /\bF\s*0?(\d{3})\b.{0,260}?\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b/gi,
+    /\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b.{0,260}?\bF\s*0?(\d{3})\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,260}?\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/gi,
+  ];
 
-  const compactPattern =
-    /\bF\s*0?(\d{3})\b.{0,180}?\b(?:SS|S\/S)\s*[:=]\s*([A-L])\b/gi;
+  for (const pattern of compactPatterns) {
+    for (const match of flattened.matchAll(pattern)) {
+      let ftag;
+      let severity;
 
-  for (const match of flattened.matchAll(compactPattern)) {
+      if (String(match[0]).match(/^\s*(SS|S\/S)/i)) {
+        severity = match[1];
+        ftag = normalizeFtag(match[2]);
+      } else {
+        ftag = normalizeFtag(match[1]);
+        severity = match[2];
+      }
+
+      addDeficiency(deficienciesByFtag, ftag, severity);
+    }
+  }
+
+  // Pattern 3: CMS 2567 table style often OCRs like:
+  // F 0689 D or F689 E
+  // This catches tags immediately followed by a severity letter.
+  const directFtagSeverityPattern = /\bF\s*0?(\d{3})\s+([A-L])\b/gi;
+
+  for (const match of flattened.matchAll(directFtagSeverityPattern)) {
     const ftag = normalizeFtag(match[1]);
+    const severity = match[2];
 
-    if (ftag === "F000") {
-      continue;
-    }
+    addDeficiency(deficienciesByFtag, ftag, severity);
+  }
 
-    const scopeSeverity = match[2].toUpperCase();
+  // Pattern 4: OCR sometimes reads "F689 - E" or "F689 E"
+  const dashPattern = /\bF\s*0?(\d{3})\s*[-–—]\s*([A-L])\b/gi;
 
-    const existing = deficienciesByFtag.get(ftag);
+  for (const match of flattened.matchAll(dashPattern)) {
+    const ftag = normalizeFtag(match[1]);
+    const severity = match[2];
 
-    if (
-      !existing ||
-      severityRank(scopeSeverity) > severityRank(existing.scopeSeverity)
-    ) {
-      deficienciesByFtag.set(ftag, {
-        ftag,
-        scopeSeverity,
-      });
-    }
+    addDeficiency(deficienciesByFtag, ftag, severity);
+  }
+
+  // Pattern 5: CMS deficiency block often contains citation text:
+  // F 0689 Free of Accident Hazards/Supervision/Devices
+  // ... Scope/Severity: E
+  // This broader window helps when OCR inserts a lot of wording.
+  const broadBlockPattern =
+    /\bF\s*0?(\d{3})\b(?:(?!\bF\s*0?\d{3}\b).){0,1200}?\b(?:SS|S\/S|Scope\s*\/?\s*Severity|Scope\s+and\s+Severity)\s*[:=]?\s*([A-L])\b/gi;
+
+  for (const match of flattened.matchAll(broadBlockPattern)) {
+    const ftag = normalizeFtag(match[1]);
+    const severity = match[2];
+
+    addDeficiency(deficienciesByFtag, ftag, severity);
   }
 
   const deficiencies = [...deficienciesByFtag.values()];
@@ -252,12 +293,7 @@ async function saveAnalysisToSheet({
 
 export async function POST(request) {
   try {
-    const {
-      fileId,
-      submissionId,
-      facility,
-      surveyType,
-    } = await request.json();
+    const { fileId, submissionId, facility, surveyType } = await request.json();
 
     const driveConnectorUrl = process.env.DRIVE_CONNECTOR_URL;
 
