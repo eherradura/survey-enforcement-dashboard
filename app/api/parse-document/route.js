@@ -94,25 +94,27 @@ function buildDebugFtagSnippets(text) {
     /\bS\/S\s*[:=]?\s*[A-L]\b/gi,
     /\bScope\s*\/?\s*Severity\b/gi,
     /\bTag\s*[:#]?\s*F?\s*0?\d{3}\b/gi,
+    /\bCFR\s*483\b/gi,
+    /\b483\.\d+/gi,
   ];
 
-  patterns.forEach((pattern) => {
+  for (const pattern of patterns) {
     for (const match of flattened.matchAll(pattern)) {
-      const start = Math.max(match.index - 350, 0);
-      const end = Math.min(match.index + 650, flattened.length);
+      const start = Math.max(match.index - 450, 0);
+      const end = Math.min(match.index + 900, flattened.length);
 
       snippets.push({
         match: match[0],
         snippet: flattened.slice(start, end),
       });
 
-      if (snippets.length >= 40) {
-        return;
+      if (snippets.length >= 60) {
+        return snippets;
       }
     }
-  });
+  }
 
-  return snippets.slice(0, 40);
+  return snippets;
 }
 
 function extractPotentialTagLines(text) {
@@ -128,10 +130,43 @@ function extractPotentialTagLines(text) {
         /\bSS\s*[:=]?\s*[A-L]\b/i.test(line) ||
         /\bS\/S\s*[:=]?\s*[A-L]\b/i.test(line) ||
         /\bScope\s*\/?\s*Severity\b/i.test(line) ||
-        /\bTag\b/i.test(line)
+        /\bTag\b/i.test(line) ||
+        /\bCFR\s*483\b/i.test(line) ||
+        /\b483\.\d+/i.test(line) ||
+        /\bdeficient practice\b/i.test(line)
       );
     })
-    .slice(0, 100);
+    .slice(0, 160);
+}
+
+function buildFullTextDebug(text) {
+  const normalized = normalizeText(text);
+  const flattened = normalized.replace(/\n/g, " ");
+
+  const totalLength = flattened.length;
+  const middleStart = Math.max(Math.floor(totalLength / 2) - 4000, 0);
+  const middleEnd = Math.min(Math.floor(totalLength / 2) + 4000, totalLength);
+
+  const statementIndex = flattened.search(/statement of deficiencies/i);
+  const cms2567Index = flattened.search(/cms\s*[-–—]?\s*2567|2567/i);
+  const providerIndex = flattened.search(/provider\/supplier|provider supplier/i);
+  const firstFtagMatch = flattened.match(/\bF\s*0?\d{3}\b/i);
+  const firstCfrMatch = flattened.match(/\b483\.\d+/i);
+  const firstDeficientPracticeIndex = flattened.search(/deficient practice/i);
+
+  return {
+    textLength: totalLength,
+    debugTextStart: flattened.slice(0, 8000),
+    debugTextMiddle: flattened.slice(middleStart, middleEnd),
+    debugTextEnd: flattened.slice(Math.max(totalLength - 8000, 0), totalLength),
+    statementOfDeficienciesIndex: statementIndex >= 0 ? statementIndex : null,
+    cms2567Index: cms2567Index >= 0 ? cms2567Index : null,
+    providerIndex: providerIndex >= 0 ? providerIndex : null,
+    firstFtagLikeMatch: firstFtagMatch ? firstFtagMatch[0] : null,
+    firstCfrLikeMatch: firstCfrMatch ? firstCfrMatch[0] : null,
+    firstDeficientPracticeIndex:
+      firstDeficientPracticeIndex >= 0 ? firstDeficientPracticeIndex : null,
+  };
 }
 
 function extractDeficiencies(text) {
@@ -145,7 +180,6 @@ function extractDeficiencies(text) {
     .map((line) => line.trim())
     .filter(Boolean);
 
-  // Pattern 1: F689 ... SS=E or SS: E nearby
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const ftagMatches = [...line.matchAll(/\bF\s*0?(\d{3})\b/gi)];
@@ -155,13 +189,14 @@ function extractDeficiencies(text) {
 
       if (ftag === "F000") continue;
 
-      const nearbyText = lines.slice(i, i + 20).join(" ");
+      const nearbyText = lines.slice(i, i + 24).join(" ");
 
       const ssMatch =
         nearbyText.match(/\bSS\s*[:=]?\s*([A-L])\b/i) ||
         nearbyText.match(/\bS\/S\s*[:=]?\s*([A-L])\b/i) ||
         nearbyText.match(/\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/i) ||
-        nearbyText.match(/\bScope\s+and\s+Severity\s*[:=]?\s*([A-L])\b/i);
+        nearbyText.match(/\bScope\s+and\s+Severity\s*[:=]?\s*([A-L])\b/i) ||
+        nearbyText.match(/\bSeverity\s*[:=]?\s*([A-L])\b/i);
 
       if (ssMatch) {
         addDeficiency(deficienciesByFtag, ftag, ssMatch[1]);
@@ -169,11 +204,11 @@ function extractDeficiencies(text) {
     }
   }
 
-  // Pattern 2: compact same-block F689 ... SS E
   const compactPatterns = [
-    /\bF\s*0?(\d{3})\b.{0,260}?\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b/gi,
-    /\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b.{0,260}?\bF\s*0?(\d{3})\b/gi,
-    /\bF\s*0?(\d{3})\b.{0,260}?\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,350}?\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b/gi,
+    /\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b.{0,350}?\bF\s*0?(\d{3})\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,350}?\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,350}?\bSeverity\s*[:=]?\s*([A-L])\b/gi,
   ];
 
   for (const pattern of compactPatterns) {
@@ -193,7 +228,6 @@ function extractDeficiencies(text) {
     }
   }
 
-  // Pattern 3: F 0689 D or F689 E
   const directFtagSeverityPattern = /\bF\s*0?(\d{3})\s+([A-L])\b/gi;
 
   for (const match of flattened.matchAll(directFtagSeverityPattern)) {
@@ -203,7 +237,6 @@ function extractDeficiencies(text) {
     addDeficiency(deficienciesByFtag, ftag, severity);
   }
 
-  // Pattern 4: F689 - E
   const dashPattern = /\bF\s*0?(\d{3})\s*[-–—]\s*([A-L])\b/gi;
 
   for (const match of flattened.matchAll(dashPattern)) {
@@ -213,22 +246,20 @@ function extractDeficiencies(text) {
     addDeficiency(deficienciesByFtag, ftag, severity);
   }
 
-  // Pattern 5: broader F-tag block with SS/Scope Severity later
-  const broadBlockPattern =
-    /\bF\s*0?(\d{3})\b(?:(?!\bF\s*0?\d{3}\b).){0,1200}?\b(?:SS|S\/S|Scope\s*\/?\s*Severity|Scope\s+and\s+Severity)\s*[:=]?\s*([A-L])\b/gi;
+  const tagScopePattern =
+    /\bTag\s*[:#]?\s*F?\s*0?(\d{3})\b.{0,700}?\b(?:Scope\s*\/?\s*Severity|Severity)\s*[:=]?\s*([A-L])\b/gi;
 
-  for (const match of flattened.matchAll(broadBlockPattern)) {
+  for (const match of flattened.matchAll(tagScopePattern)) {
     const ftag = normalizeFtag(match[1]);
     const severity = match[2];
 
     addDeficiency(deficienciesByFtag, ftag, severity);
   }
 
-  // Pattern 6: 2567 sometimes OCRs as "Tag F689 Scope Severity E"
-  const tagScopePattern =
-    /\bTag\s*[:#]?\s*F?\s*0?(\d{3})\b.{0,500}?\b(?:Scope\s*\/?\s*Severity|Severity)\s*[:=]?\s*([A-L])\b/gi;
+  const broadBlockPattern =
+    /\bF\s*0?(\d{3})\b(?:(?!\bF\s*0?\d{3}\b).){0,1500}?\b(?:SS|S\/S|Scope\s*\/?\s*Severity|Scope\s+and\s+Severity|Severity)\s*[:=]?\s*([A-L])\b/gi;
 
-  for (const match of flattened.matchAll(tagScopePattern)) {
+  for (const match of flattened.matchAll(broadBlockPattern)) {
     const ftag = normalizeFtag(match[1]);
     const severity = match[2];
 
@@ -306,6 +337,33 @@ function buildSeveritySummary(deficiencies) {
     .filter((severity) => summary[severity])
     .map((severity) => `${severity}: ${summary[severity]}`)
     .join(" • ");
+}
+
+function detectCoverLetterDeficiencyIndication(text) {
+  const cleanText = text.replace(/\s+/g, " ").trim();
+
+  const mentionsDeficiencies =
+    /this survey found the most serious deficiency|deficiencies cited during this survey|poc for the deficiencies|statement of deficiencies/i.test(
+      cleanText
+    );
+
+  const highestSeverityMatch =
+    cleanText.match(
+      /pattern of deficiencies that constitute no actual harm.*?\(([A-L])\)/i
+    ) ||
+    cleanText.match(
+      /isolated deficiencies that constitute no actual harm.*?\(([A-L])\)/i
+    ) ||
+    cleanText.match(
+      /immediate jeopardy.*?\(([A-L])\)/i
+    );
+
+  return {
+    coverLetterIndicatesDeficiencies: mentionsDeficiencies,
+    coverLetterHighestSeverity: highestSeverityMatch
+      ? highestSeverityMatch[1].toUpperCase()
+      : null,
+  };
 }
 
 async function saveAnalysisToSheet({
@@ -390,10 +448,11 @@ export async function POST(request) {
     const intakeNumberFromPdf = extractIntakeNumber(ocrData.fileName, text);
     const dates = extractSurveyDates(text);
     const severitySummary = buildSeveritySummary(deficiencies);
+    const coverLetterSignal = detectCoverLetterDeficiencyIndication(text);
 
+    const fullTextDebug = buildFullTextDebug(text);
     const debugFtagSnippets = buildDebugFtagSnippets(text);
     const debugPotentialTagLines = extractPotentialTagLines(text);
-    const debugTextPreview = text.slice(0, 8000);
 
     const parsedResult = {
       success: true,
@@ -403,11 +462,16 @@ export async function POST(request) {
       facility: facility || "",
       surveyType: surveyType || "",
       intakeNumberFromPdf,
-      deficienciesFound: deficiencies.length > 0,
+      deficienciesFound:
+        deficiencies.length > 0 ||
+        coverLetterSignal.coverLetterIndicatesDeficiencies,
       deficiencies,
       ftags: deficiencies.map((d) => `${d.ftag} - ${d.scopeSeverity}`),
       scopeSeverity: deficiencies.map((d) => d.scopeSeverity),
       severitySummary,
+      coverLetterIndicatesDeficiencies:
+        coverLetterSignal.coverLetterIndicatesDeficiencies,
+      coverLetterHighestSeverity: coverLetterSignal.coverLetterHighestSeverity,
       surveyCompletedDate: dates.surveyCompletedDate,
       surveyStartDate: dates.surveyStartDate,
       surveyEndDate: dates.surveyEndDate,
@@ -416,7 +480,7 @@ export async function POST(request) {
       savedAt: new Date().toISOString(),
 
       debug: {
-        debugTextPreview,
+        ...fullTextDebug,
         debugPotentialTagLines,
         debugFtagSnippets,
       },
