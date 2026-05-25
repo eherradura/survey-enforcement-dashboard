@@ -454,6 +454,8 @@ export default function WeeklySummaryByDivision({
   getAnswer,
   dashboardView = "weekly",
   onDashboardViewChange,
+  weeklyDays = 7,
+  onWeeklyDaysChange,
 }) {
   const weeklyEventCount = weeklySummaryItems.length;
   const isStandingView = dashboardView === "standing";
@@ -711,7 +713,24 @@ export default function WeeklySummaryByDivision({
             </span>
           </div>
 
-          <h2 style={styles.title}>Past 7 Days</h2>
+          <div style={styles.timeframeRow}>
+            <h2 style={styles.title}>Past {weeklyDays} Days</h2>
+
+            <select
+              value={weeklyDays}
+              onChange={(event) =>
+                onWeeklyDaysChange?.(Number(event.target.value))
+              }
+              style={styles.timeframeSelect}
+            >
+              <option value={7}>Past 7 days</option>
+              <option value={14}>Past 14 days</option>
+              <option value={30}>Past 30 days</option>
+              <option value={60}>Past 60 days</option>
+              <option value={90}>Past 90 days</option>
+              <option value={365}>Past 12 months</option>
+            </select>
+          </div>
         </div>
 
         <button
@@ -725,7 +744,9 @@ export default function WeeklySummaryByDivision({
 
       <div style={styles.weeklyContent}>
         {weeklyEventCount === 0 && (
-          <p style={styles.emptyText}>No survey activity in the past 7 days.</p>
+          <p style={styles.emptyText}>
+            No survey activity in the past {weeklyDays} days.
+          </p>
         )}
 
         {Object.entries(groupedWeeklyItems).map(([division, consultants]) => {
@@ -756,7 +777,7 @@ export default function WeeklySummaryByDivision({
                     {division}
                   </h3>
                   <p style={styles.divisionSubtext}>
-                    Weekly survey activity by assigned consultant
+                    Survey activity by assigned consultant
                   </p>
                 </div>
 
@@ -793,7 +814,7 @@ export default function WeeklySummaryByDivision({
 
                     {items.length === 0 ? (
                       <p style={styles.noConsultantEvents}>
-                        No survey activity this week
+                        No survey activity this period
                       </p>
                     ) : (
                       <div style={styles.eventList}>
@@ -889,6 +910,26 @@ const styles = {
     fontSize: "22px",
     lineHeight: 1.1,
     letterSpacing: "-0.3px",
+  },
+
+  timeframeRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap",
+    marginTop: "4px",
+  },
+
+  timeframeSelect: {
+    border: "1px solid #bfdbfe",
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    fontWeight: "900",
+    fontSize: "12px",
+    borderRadius: "999px",
+    padding: "7px 10px",
+    outline: "none",
+    cursor: "pointer",
   },
 
   primaryTextButton: {
