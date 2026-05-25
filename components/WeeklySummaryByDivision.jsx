@@ -69,17 +69,14 @@ const CONSULTANT_PHOTOS = {
 };
 
 const FACILITY_CONSULTANT_MAP = {
-  // Erick Herradura
   "PARK RETIREMENT": "Erick Herradura",
   "PARK REGENCY RETIREMENT CENTER": "Erick Herradura",
 
-  // Donna Kimura
   "BLOSSOM GROVE": "Donna Kimura",
   "DEL MAR": "Donna Kimura",
   "DEL MAR CONVALESCENT": "Donna Kimura",
   "DEL MAR CONVALESCENT CENTER": "Donna Kimura",
 
-  // Brenda Rojas
   "NORTH VALLEY": "Brenda Rojas",
   "NORTH VALLEY NURSING CENTER": "Brenda Rojas",
   "HERITAGE MANOR": "Brenda Rojas",
@@ -97,7 +94,6 @@ const FACILITY_CONSULTANT_MAP = {
   "THE MEADOWS ON SUNSET": "Brenda Rojas",
   "SUNSET MANOR": "Brenda Rojas",
 
-  // Jinkee Javier
   "COURTYARD": "Jinkee Javier",
   "COURTYARD CARE CENTER": "Jinkee Javier",
   "CRESCENT CITY": "Jinkee Javier",
@@ -111,7 +107,6 @@ const FACILITY_CONSULTANT_MAP = {
   "MISSION CARMICHAEL": "Jinkee Javier",
   "MISSION CARMICHAEL HEALTHCARE CENTER": "Jinkee Javier",
 
-  // Beth Clark
   "ALCOTT": "Beth Clark",
   "ALCOTT REHABILITATION HOSPITAL": "Beth Clark",
   "COUNTRY OAKS": "Beth Clark",
@@ -127,7 +122,6 @@ const FACILITY_CONSULTANT_MAP = {
   "SUN MAR NURSING CENTER": "Beth Clark",
   "SUNSET MANOR": "Beth Clark",
 
-  // Guillermo Vicencio
   "ANAHEIM": "Guillermo Vicencio",
   "ANAHEIM HEALTHCARE CENTER": "Guillermo Vicencio",
   "BONITA HILLS": "Guillermo Vicencio",
@@ -143,7 +137,6 @@ const FACILITY_CONSULTANT_MAP = {
   "PELICAN RIDGE POST-ACUTE": "Guillermo Vicencio",
   "PELICAN RIDGE POST ACUTE": "Guillermo Vicencio",
 
-  // Melissa Acuna
   "CITRUS": "Melissa Acuna",
   "CITRUS NURSING CENTER": "Melissa Acuna",
   "CCRC": "Melissa Acuna",
@@ -159,7 +152,6 @@ const FACILITY_CONSULTANT_MAP = {
   "MISSION CARE": "Melissa Acuna",
   "MISSION CARE CENTER": "Melissa Acuna",
 
-  // Gerly Orona
   "EXTENDED CARE": "Gerly Orona",
   "EXTENDED CARE HOSPITAL OF RIVERSIDE": "Gerly Orona",
   "GARDEN PARK": "Gerly Orona",
@@ -176,7 +168,6 @@ const FACILITY_CONSULTANT_MAP = {
   "VISTA VIEW POST-ACUTE": "Gerly Orona",
   "VISTA VIEW POST ACUTE": "Gerly Orona",
 
-  // Sammy Balisbis
   "VILLA DEL SOL": "Sammy Balisbis",
   "VILLA DEL SOL POST-ACUTE": "Sammy Balisbis",
   "VILLA DEL SOL POST ACUTE": "Sammy Balisbis",
@@ -260,22 +251,6 @@ function getSeverityPoints(scopeSeverity) {
   return DEFICIENCY_POINTS[severity] ?? 0;
 }
 
-function formatDateForDisplay(value) {
-  if (!value) return "No date entered";
-
-  const parsed = new Date(value);
-
-  if (!Number.isNaN(parsed.getTime())) {
-    const month = String(parsed.getMonth() + 1).padStart(2, "0");
-    const day = String(parsed.getDate()).padStart(2, "0");
-    const year = parsed.getFullYear();
-
-    return `${month}-${day}-${year}`;
-  }
-
-  return value;
-}
-
 function getYearFromDateValue(value) {
   if (!value) return null;
 
@@ -303,7 +278,6 @@ function getParsedFindingsForSubmission(parsedDocs, submissionId) {
 function calculateSubmissionPoints(parsedFindings) {
   let totalPoints = 0;
   let deficiencyCount = 0;
-  const tags = [];
 
   parsedFindings.forEach((parsed) => {
     if (parsed.noDeficiencyLetter) return;
@@ -317,23 +291,16 @@ function calculateSubmissionPoints(parsedFindings) {
 
       totalPoints += points;
       deficiencyCount += 1;
-
-      tags.push({
-        ftag: deficiency.ftag || "Unknown",
-        severity: severity || "Unknown",
-        points,
-      });
     });
   });
 
   return {
     totalPoints,
     deficiencyCount,
-    tags,
   };
 }
 
-function ConsultantAvatar({ consultant, size = 76 }) {
+function ConsultantAvatar({ consultant, size = 100 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const photo = CONSULTANT_PHOTOS[consultant];
 
@@ -351,7 +318,7 @@ function ConsultantAvatar({ consultant, size = 76 }) {
           color: "#1e40af",
           fontWeight: "950",
           flexShrink: 0,
-          fontSize: size <= 48 ? "14px" : "20px",
+          fontSize: size <= 60 ? "16px" : "26px",
           margin: "0 auto",
         }}
       >
@@ -373,8 +340,8 @@ function ConsultantAvatar({ consultant, size = 76 }) {
         height: size,
         borderRadius: "999px",
         objectFit: "cover",
-        border: "4px solid white",
-        boxShadow: "0 8px 18px rgba(15,23,42,0.16)",
+        border: "5px solid white",
+        boxShadow: "0 10px 24px rgba(15,23,42,0.2)",
         flexShrink: 0,
         background: "#e2e8f0",
         margin: "0 auto",
@@ -390,10 +357,11 @@ export default function WeeklySummaryByDivision({
   submissions = [],
   parsedDocs = {},
   getAnswer,
+  dashboardView = "weekly",
+  onDashboardViewChange,
 }) {
-  const [view, setView] = useState("weekly");
-
   const weeklyEventCount = weeklySummaryItems.length;
+  const isStandingView = dashboardView === "standing";
 
   const groupedWeeklyItems = useMemo(() => {
     const groups = {};
@@ -431,7 +399,6 @@ export default function WeeklySummaryByDivision({
           deficiencyCount: 0,
           surveyCount: 0,
           facilities: new Map(),
-          tags: [],
         };
       });
     });
@@ -443,7 +410,6 @@ export default function WeeklySummaryByDivision({
       deficiencyCount: 0,
       surveyCount: 0,
       facilities: new Map(),
-      tags: [],
     };
 
     submissions.forEach((submission) => {
@@ -476,7 +442,6 @@ export default function WeeklySummaryByDivision({
           deficiencyCount: 0,
           surveyCount: 0,
           facilities: new Map(),
-          tags: [],
         };
       }
 
@@ -502,17 +467,9 @@ export default function WeeklySummaryByDivision({
       facilityRecord.points += pointsSummary.totalPoints;
       facilityRecord.deficiencyCount += pointsSummary.deficiencyCount;
       facilityRecord.surveyCount += 1;
-
-      pointsSummary.tags.forEach((tag) => {
-        consultantMap[consultant].tags.push({
-          ...tag,
-          facility: facilityKey,
-          surveyDate: formatDateForDisplay(surveyDate),
-        });
-      });
     });
 
-    const ranked = Object.values(consultantMap)
+    return Object.values(consultantMap)
       .filter((item) => item.consultant !== "Unassigned" || item.surveyCount > 0)
       .map((item) => ({
         ...item,
@@ -534,20 +491,115 @@ export default function WeeklySummaryByDivision({
         }
 
         return a.consultant.localeCompare(b.consultant);
-      });
-
-    const maxPoints = Math.max(...ranked.map((item) => item.totalPoints), 1);
-
-    return ranked.map((item, index) => ({
-      ...item,
-      rank: index + 1,
-      barWidth: `${
-        item.totalPoints === 0
-          ? 2
-          : Math.max((item.totalPoints / maxPoints) * 100, 8)
-      }%`,
-    }));
+      })
+      .map((item, index) => ({
+        ...item,
+        rank: index + 1,
+      }));
   }, [submissions, parsedDocs, getAnswer]);
+
+  if (isStandingView) {
+    return (
+      <section style={styles.wrapper}>
+        <div style={styles.standingHeaderRow}>
+          <div>
+            <h2 style={styles.standingTitle}>
+              Facility Standing for {CURRENT_YEAR}
+            </h2>
+            <p style={styles.standingSubtitle}>
+              Best to worst consultant ranking based on current-year total
+              deficiency points from parsed/scrubbed findings for assigned
+              facilities.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onDashboardViewChange?.("weekly")}
+            style={styles.linkButton}
+          >
+            Back to Weekly Summary
+          </button>
+        </div>
+
+        <div style={styles.standingContent}>
+          {facilityStanding.length === 0 ? (
+            <p style={styles.emptyText}>
+              No current-year parsed deficiency data available yet.
+            </p>
+          ) : (
+            facilityStanding.map((consultant) => {
+              const divisionStyle = getDivisionStyle(consultant.division);
+
+              return (
+                <div
+                  key={consultant.consultant}
+                  style={{
+                    ...styles.standingRankCard,
+                    borderLeft: `8px solid ${divisionStyle.accent}`,
+                  }}
+                >
+                  <div style={styles.standingConsultantBlock}>
+                    <div
+                      style={{
+                        ...styles.standingRankNumber,
+                        background: divisionStyle.softAccent,
+                        color: divisionStyle.text,
+                      }}
+                    >
+                      #{consultant.rank}
+                    </div>
+
+                    <ConsultantAvatar consultant={consultant.consultant} size={112} />
+
+                    <div style={styles.standingNameBlock}>
+                      <p style={styles.standingConsultantName}>
+                        {consultant.consultant}
+                      </p>
+                      <p style={styles.standingDivisionName}>
+                        {consultant.division}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={styles.standingFacilityBlock}>
+                    {consultant.facilities.length === 0 ? (
+                      <div style={styles.noFacilityFindings}>
+                        No parsed current-year findings for assigned facilities
+                        yet
+                      </div>
+                    ) : (
+                      consultant.facilities.map((facility) => (
+                        <div key={facility.facility} style={styles.facilityRow}>
+                          <span style={styles.facilityName}>
+                            {facility.facility}
+                          </span>
+                          <span style={styles.facilityPoints}>
+                            {facility.points} pts
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div style={styles.totalPointsBlock}>
+                    <span style={styles.totalPointsNumber}>
+                      {consultant.totalPoints}
+                    </span>
+                    <span style={styles.totalPointsLabel}>Total Points</span>
+                    <span style={styles.totalPointsMeta}>
+                      {consultant.deficiencyCount} deficiencies ·{" "}
+                      {consultant.surveyCount} surveys
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section style={styles.wrapper}>
@@ -561,201 +613,106 @@ export default function WeeklySummaryByDivision({
             </span>
           </div>
 
-          <h2 style={styles.title}>
-            {view === "weekly"
-              ? "Past 7 Days"
-              : `Facility Standing for ${CURRENT_YEAR}`}
-          </h2>
+          <h2 style={styles.title}>Past 7 Days</h2>
         </div>
 
         <button
           type="button"
-          onClick={() => setView(view === "weekly" ? "standing" : "weekly")}
+          onClick={() => onDashboardViewChange?.("standing")}
           style={styles.linkButton}
         >
-          {view === "weekly" ? "Facility Standing" : "Back to Weekly Summary"}
+          Facility Standing
         </button>
       </div>
 
-      {view === "weekly" ? (
-        <div style={styles.weeklyContent}>
-          {weeklyEventCount === 0 && (
-            <p style={styles.emptyText}>
-              No survey activity in the past 7 days.
-            </p>
-          )}
+      <div style={styles.weeklyContent}>
+        {weeklyEventCount === 0 && (
+          <p style={styles.emptyText}>No survey activity in the past 7 days.</p>
+        )}
 
-          {Object.entries(groupedWeeklyItems).map(([division, consultants]) => {
-            const divisionStyle = getDivisionStyle(division);
+        {Object.entries(groupedWeeklyItems).map(([division, consultants]) => {
+          const divisionStyle = getDivisionStyle(division);
 
-            return (
-              <div
-                key={division}
-                style={{
-                  ...styles.divisionBlock,
-                  background: divisionStyle.shellBackground,
-                  border: divisionStyle.border,
-                  borderTop: `5px solid ${divisionStyle.accent}`,
-                }}
-              >
-                <div style={styles.divisionHeader}>
-                  <h3
-                    style={{
-                      ...styles.divisionTitle,
-                      color: divisionStyle.text,
-                    }}
-                  >
-                    {division}
-                  </h3>
+          return (
+            <div
+              key={division}
+              style={{
+                ...styles.divisionBlock,
+                background: divisionStyle.shellBackground,
+                border: divisionStyle.border,
+                borderTop: `5px solid ${divisionStyle.accent}`,
+              }}
+            >
+              <div style={styles.divisionHeader}>
+                <h3
+                  style={{
+                    ...styles.divisionTitle,
+                    color: divisionStyle.text,
+                  }}
+                >
+                  {division}
+                </h3>
 
-                  <span
-                    style={{
-                      ...styles.divisionBadge,
-                      background: divisionStyle.badgeBackground,
-                      color: divisionStyle.badgeText,
-                    }}
-                  >
-                    {Object.values(consultants).reduce(
-                      (total, items) => total + items.length,
-                      0
-                    )}{" "}
-                    events
-                  </span>
-                </div>
-
-                <div style={styles.consultantGrid}>
-                  {Object.entries(consultants).map(([consultant, items]) => (
-                    <div
-                      key={consultant}
-                      style={{
-                        ...styles.consultantCard,
-                        background: divisionStyle.cardBackground,
-                        borderTop: `5px solid ${divisionStyle.accent}`,
-                      }}
-                    >
-                      <div style={styles.consultantHeader}>
-                        <ConsultantAvatar consultant={consultant} size={78} />
-
-                        <div style={styles.consultantTextBlock}>
-                          <p style={styles.consultantName}>{consultant}</p>
-                          <p style={styles.smallMuted}>
-                            {items.length} event
-                            {items.length === 1 ? "" : "s"}
-                          </p>
-                        </div>
-                      </div>
-
-                      {items.length === 0 ? (
-                        <p style={styles.noConsultantEvents}>
-                          No survey activity this week
-                        </p>
-                      ) : (
-                        <div style={styles.eventList}>
-                          {items.map((item) => (
-                            <div key={item.id} style={styles.weeklyEvent}>
-                              <strong>{item.facility}</strong>
-                              <span>
-                                {item.date} — {item.surveyType}
-                              </span>
-                              <em>{item.comments || "No comments entered"}</em>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <span
+                  style={{
+                    ...styles.divisionBadge,
+                    background: divisionStyle.badgeBackground,
+                    color: divisionStyle.badgeText,
+                  }}
+                >
+                  {Object.values(consultants).reduce(
+                    (total, items) => total + items.length,
+                    0
+                  )}{" "}
+                  events
+                </span>
               </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div style={styles.standingContent}>
-          <div style={styles.standingNote}>
-            Best to worst is based on current-year total deficiency points from
-            parsed findings. Lower points are better.
-          </div>
 
-          <div style={styles.rankingList}>
-            {facilityStanding.length === 0 ? (
-              <p style={styles.emptyText}>
-                No current-year parsed deficiency data available yet.
-              </p>
-            ) : (
-              facilityStanding.map((consultant) => {
-                const divisionStyle = getDivisionStyle(consultant.division);
-
-                return (
+              <div style={styles.consultantGrid}>
+                {Object.entries(consultants).map(([consultant, items]) => (
                   <div
-                    key={consultant.consultant}
+                    key={consultant}
                     style={{
-                      ...styles.rankCard,
-                      borderLeft: `5px solid ${divisionStyle.accent}`,
+                      ...styles.consultantCard,
+                      background: divisionStyle.cardBackground,
+                      borderTop: `5px solid ${divisionStyle.accent}`,
                     }}
                   >
-                    <div style={styles.rankLeft}>
-                      <div
-                        style={{
-                          ...styles.rankNumber,
-                          background: divisionStyle.softAccent,
-                          color: divisionStyle.text,
-                        }}
-                      >
-                        #{consultant.rank}
-                      </div>
+                    <div style={styles.consultantHeader}>
+                      <ConsultantAvatar consultant={consultant} size={86} />
 
-                      <ConsultantAvatar
-                        consultant={consultant.consultant}
-                        size={58}
-                      />
-
-                      <div style={styles.rankNameBlock}>
-                        <p style={styles.rankName}>{consultant.consultant}</p>
-                        <p style={styles.rankDivision}>{consultant.division}</p>
+                      <div style={styles.consultantTextBlock}>
+                        <p style={styles.consultantName}>{consultant}</p>
+                        <p style={styles.smallMuted}>
+                          {items.length} event{items.length === 1 ? "" : "s"}
+                        </p>
                       </div>
                     </div>
 
-                    <div style={styles.rankMiddle}>
-                      <div style={styles.barTrack}>
-                        <div
-                          style={{
-                            ...styles.barFill,
-                            width: consultant.barWidth,
-                            background: `linear-gradient(90deg, ${divisionStyle.accent}, ${divisionStyle.softAccent})`,
-                          }}
-                        ></div>
-                      </div>
-
-                      <div style={styles.facilityMiniList}>
-                        {consultant.facilities.length === 0 ? (
-                          <span>
-                            No mapped current-year facility findings yet
-                          </span>
-                        ) : (
-                          consultant.facilities.slice(0, 5).map((facility) => (
-                            <span key={facility.facility}>
-                              {facility.facility}: {facility.points} pts
+                    {items.length === 0 ? (
+                      <p style={styles.noConsultantEvents}>
+                        No survey activity this week
+                      </p>
+                    ) : (
+                      <div style={styles.eventList}>
+                        {items.map((item) => (
+                          <div key={item.id} style={styles.weeklyEvent}>
+                            <strong>{item.facility}</strong>
+                            <span>
+                              {item.date} — {item.surveyType}
                             </span>
-                          ))
-                        )}
+                            <em>{item.comments || "No comments entered"}</em>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-
-                    <div style={styles.rankStats}>
-                      <strong>{consultant.totalPoints}</strong>
-                      <span>points</span>
-                      <strong>{consultant.deficiencyCount}</strong>
-                      <span>deficiencies</span>
-                      <strong>{consultant.surveyCount}</strong>
-                      <span>surveys</span>
-                    </div>
+                    )}
                   </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -886,7 +843,7 @@ const styles = {
     border: "1px solid #e2e8f0",
     borderRadius: "16px",
     padding: "14px 12px 12px",
-    minHeight: "190px",
+    minHeight: "205px",
     textAlign: "center",
   },
 
@@ -909,7 +866,7 @@ const styles = {
   consultantName: {
     margin: 0,
     fontWeight: "950",
-    fontSize: "17px",
+    fontSize: "18px",
     lineHeight: 1.15,
     letterSpacing: "-0.25px",
     textAlign: "center",
@@ -951,109 +908,148 @@ const styles = {
     fontSize: "12px",
   },
 
+  standingHeaderRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "18px",
+    marginBottom: "16px",
+  },
+
+  standingTitle: {
+    margin: 0,
+    fontSize: "32px",
+    lineHeight: 1.05,
+    letterSpacing: "-0.8px",
+    fontWeight: "950",
+  },
+
+  standingSubtitle: {
+    margin: "8px 0 0",
+    color: "#475569",
+    fontSize: "14px",
+    fontWeight: "750",
+    maxWidth: "850px",
+  },
+
   standingContent: {
     display: "grid",
-    gap: "10px",
-  },
-
-  standingNote: {
-    background: "#eff6ff",
-    border: "1px solid #bfdbfe",
-    color: "#1e3a8a",
-    borderRadius: "12px",
-    padding: "8px 10px",
-    fontSize: "12px",
-    fontWeight: "800",
-  },
-
-  rankingList: {
-    display: "grid",
-    gap: "8px",
-  },
-
-  rankCard: {
-    display: "grid",
-    gridTemplateColumns:
-      "minmax(260px, 0.9fr) minmax(260px, 1.2fr) minmax(110px, 0.35fr)",
     gap: "12px",
+  },
+
+  standingRankCard: {
+    display: "grid",
+    gridTemplateColumns: "minmax(280px, 0.9fr) minmax(420px, 1.4fr) minmax(160px, 0.35fr)",
+    gap: "18px",
     alignItems: "center",
     background: "#ffffff",
     border: "1px solid #e2e8f0",
-    borderRadius: "14px",
-    padding: "12px",
+    borderRadius: "18px",
+    padding: "16px",
+    boxShadow: "0 8px 18px rgba(15,23,42,0.045)",
   },
 
-  rankLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    minWidth: 0,
+  standingConsultantBlock: {
+    display: "grid",
+    justifyItems: "center",
+    textAlign: "center",
+    gap: "9px",
   },
 
-  rankNumber: {
-    width: "38px",
-    height: "38px",
-    borderRadius: "10px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+  standingRankNumber: {
+    borderRadius: "999px",
+    padding: "5px 12px",
+    fontSize: "14px",
     fontWeight: "950",
-    flexShrink: 0,
   },
 
-  rankNameBlock: {
-    minWidth: 0,
+  standingNameBlock: {
+    display: "grid",
+    gap: "2px",
   },
 
-  rankName: {
+  standingConsultantName: {
     margin: 0,
+    fontSize: "24px",
     fontWeight: "950",
-    fontSize: "16px",
-    lineHeight: 1.15,
+    letterSpacing: "-0.5px",
+    lineHeight: 1.1,
   },
 
-  rankDivision: {
-    margin: "3px 0 0",
+  standingDivisionName: {
+    margin: 0,
     color: "#64748b",
+    fontSize: "12px",
+    fontWeight: "850",
+  },
+
+  standingFacilityBlock: {
+    display: "grid",
+    gap: "7px",
+  },
+
+  facilityRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: "12px",
+    padding: "9px 12px",
+  },
+
+  facilityName: {
+    fontSize: "14px",
+    fontWeight: "900",
+    color: "#1e293b",
+  },
+
+  facilityPoints: {
+    fontSize: "14px",
+    fontWeight: "950",
+    color: "#0f172a",
+    whiteSpace: "nowrap",
+  },
+
+  noFacilityFindings: {
+    background: "#f8fafc",
+    border: "1px dashed #cbd5e1",
+    borderRadius: "12px",
+    padding: "14px",
+    color: "#64748b",
+    fontSize: "13px",
+    fontWeight: "850",
+    textAlign: "center",
+  },
+
+  totalPointsBlock: {
+    display: "grid",
+    justifyItems: "end",
+    textAlign: "right",
+    gap: "3px",
+  },
+
+  totalPointsNumber: {
+    fontSize: "42px",
+    fontWeight: "950",
+    letterSpacing: "-1px",
+    color: "#0f172a",
+    lineHeight: 1,
+  },
+
+  totalPointsLabel: {
+    fontSize: "12px",
+    fontWeight: "950",
+    color: "#475569",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+  },
+
+  totalPointsMeta: {
     fontSize: "11px",
     fontWeight: "800",
-  },
-
-  rankMiddle: {
-    display: "grid",
-    gap: "6px",
-  },
-
-  barTrack: {
-    width: "100%",
-    height: "12px",
-    borderRadius: "999px",
-    background: "#e2e8f0",
-    overflow: "hidden",
-  },
-
-  barFill: {
-    height: "100%",
-    borderRadius: "999px",
-  },
-
-  facilityMiniList: {
-    display: "flex",
-    gap: "6px",
-    flexWrap: "wrap",
     color: "#64748b",
-    fontSize: "10px",
-    fontWeight: "800",
-  },
-
-  rankStats: {
-    display: "grid",
-    gridTemplateColumns: "1fr",
-    justifyItems: "end",
-    gap: "1px",
-    fontSize: "10px",
-    color: "#64748b",
-    fontWeight: "800",
   },
 
   emptyText: {
