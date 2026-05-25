@@ -151,6 +151,21 @@ export default function Home() {
     return `${month}-${day}-${year}`;
   }
 
+  function isDateWithinPastDays(value, days) {
+    const parsed = parseFacilityDate(value);
+
+    if (!parsed) return false;
+
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    const start = new Date();
+    start.setDate(today.getDate() - (days - 1));
+    start.setHours(0, 0, 0, 0);
+
+    return parsed >= start && parsed <= today;
+  }
+
   function getYearFromSubmission(submission) {
     const answers = submission.answers;
 
@@ -601,17 +616,20 @@ export default function Home() {
         const answers = submission.answers;
         const facility = getAnswer(answers, "3");
         const rawDate = getAnswer(answers, "5");
+        const surveyType = getAnswer(answers, "4");
 
         return {
           id: submission.id,
           facility,
           rawDate,
           date: formatDisplayDate(rawDate),
-          surveyType: getAnswer(answers, "4"),
+          surveyType,
           comments: getComments(answers),
         };
       })
       .filter((item) => {
+        const withinPast7Days = isDateWithinPastDays(item.rawDate, 7);
+
         const facilityMatches =
           selectedFacility === "All Facilities" ||
           item.facility === selectedFacility;
@@ -620,7 +638,17 @@ export default function Home() {
           selectedSurveyTypes.length === 0 ||
           selectedSurveyTypes.includes(item.surveyType);
 
-        return facilityMatches && surveyTypeMatches;
+        return withinPast7Days && facilityMatches && surveyTypeMatches;
+      })
+      .sort((a, b) => {
+        const dateA = parseFacilityDate(a.rawDate);
+        const dateB = parseFacilityDate(b.rawDate);
+
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+
+        return dateB - dateA;
       });
   }, [submissions, selectedFacility, selectedSurveyTypes]);
 
@@ -636,11 +664,11 @@ export default function Home() {
 
       <section style={styles.weeklySummaryUnderBanner}>
         <WeeklySummaryByDivision
-  weeklySummaryItems={weeklySummaryItems}
-  submissions={submissions}
-  parsedDocs={parsedDocs}
-  getAnswer={getAnswer}
-/>
+          weeklySummaryItems={weeklySummaryItems}
+          submissions={submissions}
+          parsedDocs={parsedDocs}
+          getAnswer={getAnswer}
+        />
       </section>
 
       <section style={styles.controlPanel}>
