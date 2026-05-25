@@ -81,6 +81,59 @@ function addDeficiency(deficienciesByFtag, ftag, scopeSeverity) {
   }
 }
 
+function buildDebugFtagSnippets(text) {
+  const normalized = normalizeText(text);
+  const flattened = normalized.replace(/\n/g, " ");
+  const snippets = [];
+
+  const patterns = [
+    /\bF\s*0?\d{3}\b/gi,
+    /\bF[-\s]?\d{3}\b/gi,
+    /\bF\d{3}\b/gi,
+    /\bSS\s*[:=]?\s*[A-L]\b/gi,
+    /\bS\/S\s*[:=]?\s*[A-L]\b/gi,
+    /\bScope\s*\/?\s*Severity\b/gi,
+    /\bTag\s*[:#]?\s*F?\s*0?\d{3}\b/gi,
+  ];
+
+  patterns.forEach((pattern) => {
+    for (const match of flattened.matchAll(pattern)) {
+      const start = Math.max(match.index - 350, 0);
+      const end = Math.min(match.index + 650, flattened.length);
+
+      snippets.push({
+        match: match[0],
+        snippet: flattened.slice(start, end),
+      });
+
+      if (snippets.length >= 40) {
+        return;
+      }
+    }
+  });
+
+  return snippets.slice(0, 40);
+}
+
+function extractPotentialTagLines(text) {
+  const normalized = normalizeText(text);
+
+  return normalized
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => {
+      return (
+        /\bF\s*0?\d{3}\b/i.test(line) ||
+        /\bF\d{3}\b/i.test(line) ||
+        /\bSS\s*[:=]?\s*[A-L]\b/i.test(line) ||
+        /\bS\/S\s*[:=]?\s*[A-L]\b/i.test(line) ||
+        /\bScope\s*\/?\s*Severity\b/i.test(line) ||
+        /\bTag\b/i.test(line)
+      );
+    })
+    .slice(0, 100);
+}
+
 function extractDeficiencies(text) {
   const normalized = normalizeText(text);
   const flattened = normalized.replace(/\n/g, " ");
@@ -140,9 +193,7 @@ function extractDeficiencies(text) {
     }
   }
 
-  // Pattern 3: CMS 2567 table style often OCRs like:
-  // F 0689 D or F689 E
-  // This catches tags immediately followed by a severity letter.
+  // Pattern 3: F 0689 D or F689 E
   const directFtagSeverityPattern = /\bF\s*0?(\d{3})\s+([A-L])\b/gi;
 
   for (const match of flattened.matchAll(directFtagSeverityPattern)) {
@@ -152,7 +203,7 @@ function extractDeficiencies(text) {
     addDeficiency(deficienciesByFtag, ftag, severity);
   }
 
-  // Pattern 4: OCR sometimes reads "F689 - E" or "F689 E"
+  // Pattern 4: F689 - E
   const dashPattern = /\bF\s*0?(\d{3})\s*[-–—]\s*([A-L])\b/gi;
 
   for (const match of flattened.matchAll(dashPattern)) {
@@ -162,14 +213,22 @@ function extractDeficiencies(text) {
     addDeficiency(deficienciesByFtag, ftag, severity);
   }
 
-  // Pattern 5: CMS deficiency block often contains citation text:
-  // F 0689 Free of Accident Hazards/Supervision/Devices
-  // ... Scope/Severity: E
-  // This broader window helps when OCR inserts a lot of wording.
+  // Pattern 5: broader F-tag block with SS/Scope Severity later
   const broadBlockPattern =
     /\bF\s*0?(\d{3})\b(?:(?!\bF\s*0?\d{3}\b).){0,1200}?\b(?:SS|S\/S|Scope\s*\/?\s*Severity|Scope\s+and\s+Severity)\s*[:=]?\s*([A-L])\b/gi;
 
   for (const match of flattened.matchAll(broadBlockPattern)) {
+    const ftag = normalizeFtag(match[1]);
+    const severity = match[2];
+
+    addDeficiency(deficienciesByFtag, ftag, severity);
+  }
+
+  // Pattern 6: 2567 sometimes OCRs as "Tag F689 Scope Severity E"
+  const tagScopePattern =
+    /\bTag\s*[:#]?\s*F?\s*0?(\d{3})\b.{0,500}?\b(?:Scope\s*\/?\s*Severity|Severity)\s*[:=]?\s*([A-L])\b/gi;
+
+  for (const match of flattened.matchAll(tagScopePattern)) {
     const ftag = normalizeFtag(match[1]);
     const severity = match[2];
 
@@ -332,6 +391,10 @@ export async function POST(request) {
     const dates = extractSurveyDates(text);
     const severitySummary = buildSeveritySummary(deficiencies);
 
+    const debugFtagSnippets = buildDebugFtagSnippets(text);
+    const debugPotentialTagLines = extractPotentialTagLines(text);
+    const debugTextPreview = text.slice(0, 8000);
+
     const parsedResult = {
       success: true,
       fileName: ocrData.fileName,
@@ -351,6 +414,12 @@ export async function POST(request) {
       textLength: text.length,
       ocrSource: "Google Drive OCR",
       savedAt: new Date().toISOString(),
+
+      debug: {
+        debugTextPreview,
+        debugPotentialTagLines,
+        debugFtagSnippets,
+      },
     };
 
     const saveResult = await saveAnalysisToSheet({
