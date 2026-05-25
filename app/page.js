@@ -6,6 +6,7 @@ import WeeklySummaryByDivision from "../components/WeeklySummaryByDivision";
 export default function Home() {
   const [dashboardView, setDashboardView] = useState("weekly");
   const [submissions, setSubmissions] = useState([]);
+  const [weeklyDays, setWeeklyDays] = useState(7);
   const [driveData, setDriveData] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState("All Facilities");
   const [selectedYear, setSelectedYear] = useState("All Years");
@@ -616,7 +617,7 @@ export default function Home() {
         };
       })
       .filter((item) => {
-        const withinPast7Days = isDateWithinPastDays(item.rawDate, 7);
+        const withinSelectedDays = isDateWithinPastDays(item.rawDate, weeklyDays);
 
         const facilityMatches =
           selectedFacility === "All Facilities" ||
@@ -626,7 +627,7 @@ export default function Home() {
           selectedSurveyTypes.length === 0 ||
           selectedSurveyTypes.includes(item.surveyType);
 
-        return withinPast7Days && facilityMatches && surveyTypeMatches;
+       return withinSelectedDays && facilityMatches && surveyTypeMatches;
       })
       .sort((a, b) => {
         const dateA = parseFacilityDate(a.rawDate);
@@ -638,7 +639,7 @@ export default function Home() {
 
         return dateB - dateA;
       });
-  }, [submissions, selectedFacility, selectedSurveyTypes]);
+}, [submissions, selectedFacility, selectedSurveyTypes, weeklyDays]);
 
   return (
     <main style={styles.page}>
@@ -651,14 +652,16 @@ export default function Home() {
       </section>
 
       <section style={styles.weeklySummaryUnderBanner}>
-        <WeeklySummaryByDivision
-          weeklySummaryItems={weeklySummaryItems}
-          submissions={submissions}
-          parsedDocs={parsedDocs}
-          getAnswer={getAnswer}
-          dashboardView={dashboardView}
-          onDashboardViewChange={setDashboardView}
-        />
+       <WeeklySummaryByDivision
+  weeklySummaryItems={weeklySummaryItems}
+  submissions={submissions}
+  parsedDocs={parsedDocs}
+  getAnswer={getAnswer}
+  dashboardView={dashboardView}
+  onDashboardViewChange={setDashboardView}
+  weeklyDays={weeklyDays}
+  onWeeklyDaysChange={setWeeklyDays}
+/>
       </section>
 
       {dashboardView === "weekly" && (
