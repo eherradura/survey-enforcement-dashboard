@@ -1,314 +1,454 @@
 "use client";
 
-import Image from "next/image";
+import { useMemo, useState } from "react";
 
-const DIVISIONS = [
-  {
-    divisionName: "Erick's Division",
-    consultants: ["beth", "jinkee", "guillermo", "brenda"],
-  },
-  {
-    divisionName: "Donna's Division",
-    consultants: ["gerly", "melissa", "sammy"],
-  },
-];
+const CURRENT_YEAR = new Date().getFullYear();
 
-const CONSULTANTS = {
-  beth: {
-    name: "Beth Clark",
-    photo: "/consultants/Beth%20Clark.jpg",
-  },
-  jinkee: {
-    name: "Jinkee Javier",
-    photo: "/consultants/Jinkee%20Javier.jpg",
-  },
-  guillermo: {
-    name: "Guillermo Vicencio",
-    photo: "/consultants/Guillermo%20Vicencio.jpg",
-  },
-  brenda: {
-    name: "Brenda Rojas",
-    photo: "/consultants/Brenda%20Washington.jpg",
-  },
-  gerly: {
-    name: "Gerly Orona",
-    photo: "/consultants/Gerly%20Orona.jpg",
-  },
-  melissa: {
-    name: "Melissa Acuna",
-    photo: "/consultants/Melissa%20Acuna.jpg",
-  },
-  sammy: {
-    name: "Sammy Balisbis",
-    photo: "/consultants/Sammy%20Balisbis.jpg",
-  },
+const DIVISIONS = {
+  "Erick's Division": ["Beth Clark", "Jinkee Javier", "Guillermo Vicencio", "Brenda Washington"],
+  "Donna's Division": ["Gerly Orona", "Melissa Acuna", "Sammy Balisbis"],
 };
 
-export const CONSULTANT_ASSIGNMENTS = {
-  // Beth
-  Alcott: "beth",
-  "Country Oaks": "beth",
-  "College Vista": "beth",
-  "Sunset Manor": "beth",
-  "Pomona Vista": "beth",
-  "Sun Mar Nursing": "beth",
+const CONSULTANT_PHOTOS = {
+  "Beth Clark": "/Beth Clark.jpg",
+  "Brenda Washington": "/Brenda Washington.jpg",
+  "Gerly Orona": "/Gerly Orona.jpg",
+  "Guillermo Vicencio": "/Guillermo Vicencio.jpg",
+  "Jinkee Javier": "/Jinkee Javier.jpg",
+  "Melissa Acuna": "/Melissa Acuna.jpg",
+  "Sammy Balisbis": "/Sammy Balisbis.jpg",
+};
 
-  // Jinkee
-  Courtyard: "jinkee",
-  "Crescent City": "jinkee",
-  "Diamond Ridge": "jinkee",
-  Excell: "jinkee",
-  Madera: "jinkee",
-  "Mission Carmichael": "jinkee",
+// Add or correct facility assignments here.
+// Use uppercase facility names as keys.
+const FACILITY_CONSULTANT_MAP = {
+  "MISSION CARE CENTER": "Melissa Acuna",
+  "MISSION CARMICHAEL": "Jinkee Javier",
+};
 
-  // Guillermo
-  Anaheim: "guillermo",
-  "Bonita Hills": "guillermo",
-  "French Park": "guillermo",
-  "Gordon Lane": "guillermo",
-  "Park Regency Care": "guillermo",
-  "Pelican Ridge": "guillermo",
-
-  // Brenda
-  "North Valley": "brenda",
-  "Heritage Manor": "brenda",
-  Pacific: "brenda",
-  "Monterey Park": "brenda",
-  Tarzana: "brenda",
-  Vineland: "brenda",
-
-  // Gerly
-  "Extended Care": "gerly",
-  "Garden Park": "gerly",
-  "Mountain View": "gerly",
-  "Ocean View": "gerly",
-  "Villa Rancho Bernardo": "gerly",
-  "Vista View": "gerly",
-
-  // Melissa
-  Citrus: "melissa",
-  CCRC: "melissa",
-  Menifee: "melissa",
-  Trabuco: "melissa",
-  "Victoria Care": "melissa",
-  "Mission Care": "melissa",
-
-  // Sammy
-  "Villa Del Sol": "sammy",
-  "The Grove": "sammy",
-  "Sierra View": "sammy",
-  "Cottage Crest": "sammy",
-  Paramount: "sammy",
-  "Sunny Hills": "sammy",
-  Edutrack: "sammy",
+// CMS health inspection deficiency point weights.
+// This is regular scope/severity scoring, not SQOC/revisit-adjusted scoring.
+const DEFICIENCY_POINTS = {
+  A: 0,
+  B: 0,
+  C: 0,
+  D: 4,
+  E: 8,
+  F: 16,
+  G: 20,
+  H: 35,
+  I: 45,
+  J: 50,
+  K: 100,
+  L: 150,
 };
 
 function normalizeFacilityName(value) {
   return String(value || "")
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, "")
-    .replace(/care center/g, "")
-    .replace(/healthcare center/g, "")
-    .replace(/rehabilitation hospital/g, "")
-    .replace(/rehabilitation/g, "")
-    .replace(/hospital/g, "")
-    .replace(/nursing/g, "")
-    .replace(/snf/g, "")
-    .replace(/[^a-z0-9]/g, "")
-    .trim();
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " ");
 }
 
-function getConsultantKeyForFacility(facilityName) {
-  const normalizedFacility = normalizeFacilityName(facilityName);
+function getConsultantForFacility(facilityName) {
+  const normalized = normalizeFacilityName(facilityName);
 
-  for (const [assignedFacility, consultantKey] of Object.entries(
-    CONSULTANT_ASSIGNMENTS
-  )) {
-    const normalizedAssigned = normalizeFacilityName(assignedFacility);
+  if (FACILITY_CONSULTANT_MAP[normalized]) {
+    return FACILITY_CONSULTANT_MAP[normalized];
+  }
 
-    if (
-      normalizedFacility.includes(normalizedAssigned) ||
-      normalizedAssigned.includes(normalizedFacility)
-    ) {
-      return consultantKey;
+  const partialMatch = Object.entries(FACILITY_CONSULTANT_MAP).find(([facility]) =>
+    normalized.includes(facility)
+  );
+
+  if (partialMatch) {
+    return partialMatch[1];
+  }
+
+  return "Unassigned";
+}
+
+function getDivisionForConsultant(consultantName) {
+  for (const [division, consultants] of Object.entries(DIVISIONS)) {
+    if (consultants.includes(consultantName)) {
+      return division;
     }
   }
 
-  return "unassigned";
+  return "Unassigned";
 }
 
-function parseFlexibleDate(value) {
-  if (!value || value === "No information available") return null;
+function getSeverityPoints(scopeSeverity) {
+  const severity = String(scopeSeverity || "").trim().toUpperCase();
+  return DEFICIENCY_POINTS[severity] ?? 0;
+}
 
-  const raw = String(value).trim();
+function formatDateForDisplay(value) {
+  if (!value) return "No date entered";
 
-  const mmddyyyy =
-    raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/) ||
-    raw.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  const parsed = new Date(value);
 
-  if (mmddyyyy) {
-    const month = Number(mmddyyyy[1]) - 1;
-    const day = Number(mmddyyyy[2]);
-    const year = Number(mmddyyyy[3]);
-    return new Date(year, month, day);
+  if (!Number.isNaN(parsed.getTime())) {
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    const year = parsed.getFullYear();
+
+    return `${month}-${day}-${year}`;
   }
 
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return value;
 }
 
-function formatDisplayDate(value) {
-  const parsed = parseFlexibleDate(value);
+function getYearFromDateValue(value) {
+  if (!value) return null;
 
-  if (!parsed) return value || "No date entered";
+  const text = String(value);
+  const directYear = text.match(/\b(20\d{2})\b/);
 
-  const month = String(parsed.getMonth() + 1).padStart(2, "0");
-  const day = String(parsed.getDate()).padStart(2, "0");
-  const year = parsed.getFullYear();
+  if (directYear) return Number(directYear[1]);
 
-  return `${month}-${day}-${year}`;
+  const parsed = new Date(text);
+
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.getFullYear();
+  }
+
+  return null;
 }
 
-function isWithinLast7Days(value) {
-  const date = parseFlexibleDate(value);
-
-  if (!date) return false;
-
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
-
-  const sevenDaysAgo = new Date(today);
-  sevenDaysAgo.setDate(today.getDate() - 7);
-  sevenDaysAgo.setHours(0, 0, 0, 0);
-
-  return date >= sevenDaysAgo && date <= today;
+function getParsedFindingsForSubmission(parsedDocs, submissionId) {
+  return Object.entries(parsedDocs || {})
+    .filter(([key]) => key.startsWith(`${submissionId}-`))
+    .map(([, value]) => value)
+    .filter((parsed) => parsed && parsed.success !== false);
 }
 
-function groupWeeklyItemsByDivision(items) {
-  const grouped = {
-    "Erick's Division": {
-      beth: [],
-      jinkee: [],
-      guillermo: [],
-      brenda: [],
-    },
-    "Donna's Division": {
-      gerly: [],
-      melissa: [],
-      sammy: [],
-    },
-    Unassigned: {
-      unassigned: [],
-    },
-  };
+function calculateSubmissionPoints(parsedFindings) {
+  let totalPoints = 0;
+  let deficiencyCount = 0;
+  const tags = [];
 
-  items.forEach((item) => {
-    const consultantKey = getConsultantKeyForFacility(item.facility);
+  parsedFindings.forEach((parsed) => {
+    if (parsed.noDeficiencyLetter) return;
 
-    const division = DIVISIONS.find((divisionItem) =>
-      divisionItem.consultants.includes(consultantKey)
-    );
+    (parsed.deficiencies || []).forEach((deficiency) => {
+      const severity = String(deficiency.scopeSeverity || "").trim().toUpperCase();
+      const points = getSeverityPoints(severity);
 
-    if (!division) {
-      grouped.Unassigned.unassigned.push(item);
-      return;
-    }
+      totalPoints += points;
+      deficiencyCount += 1;
 
-    grouped[division.divisionName][consultantKey].push(item);
+      tags.push({
+        ftag: deficiency.ftag || "Unknown",
+        severity: severity || "Unknown",
+        points,
+      });
+    });
   });
 
-  return grouped;
+  return {
+    totalPoints,
+    deficiencyCount,
+    tags,
+  };
 }
 
-export default function WeeklySummaryByDivision({ weeklySummaryItems = [] }) {
-  const filteredItems = weeklySummaryItems
-    .filter((item) => isWithinLast7Days(item.rawDate || item.date))
-    .sort((a, b) => {
-      const dateA = parseFlexibleDate(a.rawDate || a.date);
-      const dateB = parseFlexibleDate(b.rawDate || b.date);
+export default function WeeklySummaryByDivision({
+  weeklySummaryItems = [],
+  submissions = [],
+  parsedDocs = {},
+  getAnswer,
+}) {
+  const [view, setView] = useState("weekly");
 
-      return (dateB?.getTime() || 0) - (dateA?.getTime() || 0);
+  const weeklyEventCount = weeklySummaryItems.length;
+
+  const facilityStanding = useMemo(() => {
+    const consultantMap = {};
+
+    Object.entries(DIVISIONS).forEach(([division, consultants]) => {
+      consultants.forEach((consultant) => {
+        consultantMap[consultant] = {
+          consultant,
+          division,
+          photo: CONSULTANT_PHOTOS[consultant],
+          totalPoints: 0,
+          deficiencyCount: 0,
+          surveyCount: 0,
+          facilities: new Map(),
+          tags: [],
+        };
+      });
     });
 
-  const grouped = groupWeeklyItemsByDivision(filteredItems);
+    consultantMap.Unassigned = {
+      consultant: "Unassigned",
+      division: "Unassigned",
+      photo: null,
+      totalPoints: 0,
+      deficiencyCount: 0,
+      surveyCount: 0,
+      facilities: new Map(),
+      tags: [],
+    };
+
+    submissions.forEach((submission) => {
+      const answers = submission.answers || {};
+      const facility = getAnswer ? getAnswer(answers, "3") : answers?.["3"]?.answer;
+      const surveyDate = getAnswer ? getAnswer(answers, "5") : answers?.["5"]?.answer;
+      const surveyYear = getYearFromDateValue(surveyDate);
+
+      if (surveyYear !== CURRENT_YEAR) return;
+
+      const consultant = getConsultantForFacility(facility);
+      const parsedFindings = getParsedFindingsForSubmission(parsedDocs, submission.id);
+      const pointsSummary = calculateSubmissionPoints(parsedFindings);
+
+      if (!consultantMap[consultant]) {
+        consultantMap[consultant] = {
+          consultant,
+          division: getDivisionForConsultant(consultant),
+          photo: CONSULTANT_PHOTOS[consultant] || null,
+          totalPoints: 0,
+          deficiencyCount: 0,
+          surveyCount: 0,
+          facilities: new Map(),
+          tags: [],
+        };
+      }
+
+      consultantMap[consultant].surveyCount += 1;
+      consultantMap[consultant].totalPoints += pointsSummary.totalPoints;
+      consultantMap[consultant].deficiencyCount += pointsSummary.deficiencyCount;
+
+      const facilityKey = facility || "Unknown Facility";
+
+      if (!consultantMap[consultant].facilities.has(facilityKey)) {
+        consultantMap[consultant].facilities.set(facilityKey, {
+          facility: facilityKey,
+          points: 0,
+          deficiencyCount: 0,
+          surveyCount: 0,
+        });
+      }
+
+      const facilityRecord = consultantMap[consultant].facilities.get(facilityKey);
+      facilityRecord.points += pointsSummary.totalPoints;
+      facilityRecord.deficiencyCount += pointsSummary.deficiencyCount;
+      facilityRecord.surveyCount += 1;
+
+      pointsSummary.tags.forEach((tag) => {
+        consultantMap[consultant].tags.push({
+          ...tag,
+          facility: facilityKey,
+          surveyDate: formatDateForDisplay(surveyDate),
+        });
+      });
+    });
+
+    const ranked = Object.values(consultantMap)
+      .filter((item) => item.consultant !== "Unassigned" || item.surveyCount > 0)
+      .map((item) => ({
+        ...item,
+        facilities: Array.from(item.facilities.values()).sort(
+          (a, b) => b.points - a.points
+        ),
+      }))
+      .sort((a, b) => {
+        if (a.totalPoints !== b.totalPoints) return a.totalPoints - b.totalPoints;
+        if (a.deficiencyCount !== b.deficiencyCount) {
+          return a.deficiencyCount - b.deficiencyCount;
+        }
+        return a.consultant.localeCompare(b.consultant);
+      });
+
+    const maxPoints = Math.max(...ranked.map((item) => item.totalPoints), 1);
+
+    return ranked.map((item, index) => ({
+      ...item,
+      rank: index + 1,
+      barWidth: `${Math.max((item.totalPoints / maxPoints) * 100, item.totalPoints > 0 ? 8 : 2)}%`,
+    }));
+  }, [submissions, parsedDocs, getAnswer]);
+
+  const groupedWeeklyItems = useMemo(() => {
+    const groups = {};
+
+    weeklySummaryItems.forEach((item) => {
+      const consultant = getConsultantForFacility(item.facility);
+      const division = getDivisionForConsultant(consultant);
+
+      if (!groups[division]) {
+        groups[division] = {};
+      }
+
+      if (!groups[division][consultant]) {
+        groups[division][consultant] = [];
+      }
+
+      groups[division][consultant].push(item);
+    });
+
+    return groups;
+  }, [weeklySummaryItems]);
 
   return (
-    <div style={styles.wrapper}>
+    <section style={styles.wrapper}>
       <div style={styles.headerRow}>
-        <div>
-          <p style={styles.kicker}>Weekly Summary</p>
-          <h2 style={styles.title}>Past 7 Days</h2>
+        <div style={styles.titleCluster}>
+          <div style={styles.titleLine}>
+            <p style={styles.kicker}>Weekly Summary</p>
+            <span style={styles.eventBubble}>{weeklyEventCount} events</span>
+          </div>
+
+          <h2 style={styles.title}>
+            {view === "weekly"
+              ? "Past 7 Days"
+              : `Facility Standing for ${CURRENT_YEAR}`}
+          </h2>
         </div>
-        <div style={styles.countBadge}>{filteredItems.length} events</div>
+
+        <button
+          type="button"
+          onClick={() => setView(view === "weekly" ? "standing" : "weekly")}
+          style={styles.linkButton}
+        >
+          {view === "weekly" ? "Facility Standing" : "Back to Weekly Summary"}
+        </button>
       </div>
 
-      <div style={styles.divisionGrid}>
-        {DIVISIONS.map((division) => (
-          <section key={division.divisionName} style={styles.divisionCard}>
-            <h3 style={styles.divisionTitle}>{division.divisionName}</h3>
+      {view === "weekly" ? (
+        <div style={styles.weeklyContent}>
+          {weeklyEventCount === 0 ? (
+            <p style={styles.emptyText}>No survey activity in the past 7 days.</p>
+          ) : (
+            Object.entries(groupedWeeklyItems).map(([division, consultants]) => (
+              <div key={division} style={styles.divisionBlock}>
+                <h3 style={styles.divisionTitle}>{division}</h3>
 
-            <div style={styles.consultantGrid}>
-              {division.consultants.map((consultantKey) => {
-                const consultant = CONSULTANTS[consultantKey];
-                const events = grouped[division.divisionName][consultantKey];
+                <div style={styles.consultantGrid}>
+                  {Object.entries(consultants).map(([consultant, items]) => (
+                    <div key={consultant} style={styles.consultantCard}>
+                      <div style={styles.consultantHeader}>
+                        {CONSULTANT_PHOTOS[consultant] ? (
+                          <img
+                            src={CONSULTANT_PHOTOS[consultant]}
+                            alt={consultant}
+                            style={styles.avatar}
+                          />
+                        ) : (
+                          <div style={styles.avatarFallback}>
+                            {consultant.slice(0, 1)}
+                          </div>
+                        )}
 
-                return (
-                  <div key={consultantKey} style={styles.consultantCard}>
-                    <div style={styles.consultantHeader}>
-                      <div style={styles.photoWrap}>
-                        <Image
-                          src={consultant.photo}
-                          alt={consultant.name}
-                          width={52}
-                          height={52}
-                          style={styles.photo}
-                        />
+                        <div>
+                          <p style={styles.consultantName}>{consultant}</p>
+                          <p style={styles.smallMuted}>
+                            {items.length} event{items.length === 1 ? "" : "s"}
+                          </p>
+                        </div>
                       </div>
 
-                      <div>
-                        <div style={styles.consultantName}>
-                          {consultant.name}
-                        </div>
-                        <div style={styles.eventCount}>
-                          {events.length} event{events.length === 1 ? "" : "s"}
-                        </div>
-                      </div>
-                    </div>
-
-                    {events.length === 0 ? (
-                      <p style={styles.emptyText}>
-                        No survey activity entered in the past 7 days.
-                      </p>
-                    ) : (
                       <div style={styles.eventList}>
-                        {events.map((event) => (
-                          <div key={event.id} style={styles.eventItem}>
-                            <strong>{event.facility}</strong>:{" "}
-                            {formatDisplayDate(event.rawDate || event.date)} -{" "}
-                            {event.surveyType}.{" "}
-                            <span style={styles.comments}>
-                              Comments: {event.comments}
+                        {items.map((item) => (
+                          <div key={item.id} style={styles.weeklyEvent}>
+                            <strong>{item.facility}</strong>
+                            <span>
+                              {item.date} — {item.surveyType}
                             </span>
+                            <em>{item.comments || "No comments entered"}</em>
                           </div>
                         ))}
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        <div style={styles.standingContent}>
+          <div style={styles.standingNote}>
+            Best to worst is based on total deficiency points for current-year survey events that have parsed findings. Lower points are better.
+          </div>
+
+          <div style={styles.rankingList}>
+            {facilityStanding.length === 0 ? (
+              <p style={styles.emptyText}>
+                No current-year parsed deficiency data available yet.
+              </p>
+            ) : (
+              facilityStanding.map((consultant) => (
+                <div key={consultant.consultant} style={styles.rankCard}>
+                  <div style={styles.rankLeft}>
+                    <div style={styles.rankNumber}>#{consultant.rank}</div>
+
+                    {consultant.photo ? (
+                      <img
+                        src={consultant.photo}
+                        alt={consultant.consultant}
+                        style={styles.rankAvatar}
+                      />
+                    ) : (
+                      <div style={styles.rankAvatarFallback}>
+                        {consultant.consultant.slice(0, 1)}
+                      </div>
                     )}
+
+                    <div style={styles.rankNameBlock}>
+                      <p style={styles.rankName}>{consultant.consultant}</p>
+                      <p style={styles.rankDivision}>{consultant.division}</p>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </div>
-    </div>
+
+                  <div style={styles.rankMiddle}>
+                    <div style={styles.barTrack}>
+                      <div
+                        style={{
+                          ...styles.barFill,
+                          width: consultant.barWidth,
+                        }}
+                      ></div>
+                    </div>
+
+                    <div style={styles.facilityMiniList}>
+                      {consultant.facilities.length === 0 ? (
+                        <span>No mapped current-year facility findings yet</span>
+                      ) : (
+                        consultant.facilities.slice(0, 4).map((facility) => (
+                          <span key={facility.facility}>
+                            {facility.facility}: {facility.points} pts
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={styles.rankStats}>
+                    <strong>{consultant.totalPoints}</strong>
+                    <span>points</span>
+                    <strong>{consultant.deficiencyCount}</strong>
+                    <span>deficiencies</span>
+                    <strong>{consultant.surveyCount}</strong>
+                    <span>surveys</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
 const styles = {
   wrapper: {
     background: "rgba(255,255,255,0.94)",
-    border: "1px solid rgba(226, 232, 240, 0.95)",
-    borderRadius: "16px",
+    border: "1px solid rgba(226,232,240,0.95)",
+    borderRadius: "18px",
     padding: "12px",
     boxShadow: "0 8px 20px rgba(15, 23, 42, 0.055)",
   },
@@ -316,110 +456,132 @@ const styles = {
   headerRow: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    gap: "10px",
+    alignItems: "flex-start",
+    gap: "12px",
     marginBottom: "10px",
+  },
+
+  titleCluster: {
+    minWidth: 0,
+  },
+
+  titleLine: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    flexWrap: "wrap",
   },
 
   kicker: {
     margin: 0,
     color: "#64748b",
-    fontWeight: "800",
+    fontWeight: "900",
     fontSize: "11px",
     textTransform: "uppercase",
-    letterSpacing: "0.08em",
+    letterSpacing: "0.1em",
+  },
+
+  eventBubble: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "3px 9px",
+    borderRadius: "999px",
+    background: "#e0f2fe",
+    color: "#075985",
+    fontSize: "11px",
+    fontWeight: "900",
   },
 
   title: {
-    margin: "3px 0 0",
+    margin: "2px 0 0",
     fontSize: "20px",
-    color: "#0f172a",
-    letterSpacing: "-0.35px",
+    lineHeight: 1.1,
+    letterSpacing: "-0.3px",
   },
 
-  countBadge: {
-    background: "#e0f2fe",
-    color: "#075985",
-    borderRadius: "999px",
-    padding: "6px 10px",
-    fontSize: "12px",
-    fontWeight: "800",
+  linkButton: {
+    border: "none",
+    background: "transparent",
+    color: "#2563eb",
+    fontWeight: "900",
+    fontSize: "13px",
+    cursor: "pointer",
+    textDecoration: "underline",
+    textUnderlineOffset: "3px",
+    padding: "4px 0",
     whiteSpace: "nowrap",
   },
 
-  divisionGrid: {
+  weeklyContent: {
     display: "grid",
-    gridTemplateColumns: "1fr",
     gap: "10px",
   },
 
-  divisionCard: {
-    border: "1px solid #e2e8f0",
-    borderRadius: "14px",
-    background: "#f8fafc",
-    padding: "10px",
+  divisionBlock: {
+    borderTop: "1px solid #e2e8f0",
+    paddingTop: "10px",
   },
 
   divisionTitle: {
     margin: "0 0 8px",
-    fontSize: "15px",
-    color: "#0f172a",
+    fontSize: "14px",
+    color: "#334155",
+    fontWeight: "900",
   },
 
   consultantGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
     gap: "8px",
   },
 
   consultantCard: {
-    background: "white",
-    border: "1px solid #e5e7eb",
-    borderRadius: "12px",
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: "14px",
     padding: "9px",
   },
 
   consultantHeader: {
     display: "flex",
     alignItems: "center",
-    gap: "9px",
+    gap: "8px",
     marginBottom: "8px",
   },
 
-  photoWrap: {
-    width: "52px",
-    height: "52px",
+  avatar: {
+    width: "38px",
+    height: "38px",
     borderRadius: "999px",
-    overflow: "hidden",
-    border: "2px solid #dbeafe",
-    flexShrink: 0,
-    background: "#f1f5f9",
+    objectFit: "cover",
+    border: "2px solid white",
+    boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
   },
 
-  photo: {
-    width: "52px",
-    height: "52px",
-    objectFit: "cover",
+  avatarFallback: {
+    width: "38px",
+    height: "38px",
+    borderRadius: "999px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#dbeafe",
+    color: "#1e40af",
+    fontWeight: "900",
   },
 
   consultantName: {
-    fontSize: "14px",
+    margin: 0,
     fontWeight: "900",
-    color: "#0f172a",
+    fontSize: "13px",
   },
 
-  eventCount: {
-    marginTop: "2px",
+  smallMuted: {
+    margin: "1px 0 0",
+    color: "#64748b",
     fontSize: "11px",
     fontWeight: "700",
-    color: "#64748b",
-  },
-
-  emptyText: {
-    margin: 0,
-    color: "#94a3b8",
-    fontSize: "12px",
-    lineHeight: 1.35,
   },
 
   eventList: {
@@ -427,17 +589,146 @@ const styles = {
     gap: "6px",
   },
 
-  eventItem: {
-    background: "#f8fafc",
-    border: "1px solid #e2e8f0",
+  weeklyEvent: {
+    display: "grid",
+    gap: "2px",
+    background: "white",
+    border: "1px solid #e5e7eb",
     borderRadius: "10px",
     padding: "7px",
-    color: "#334155",
     fontSize: "12px",
-    lineHeight: 1.35,
   },
 
-  comments: {
+  standingContent: {
+    display: "grid",
+    gap: "10px",
+  },
+
+  standingNote: {
+    background: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    color: "#1e3a8a",
+    borderRadius: "12px",
+    padding: "8px 10px",
+    fontSize: "12px",
+    fontWeight: "800",
+  },
+
+  rankingList: {
+    display: "grid",
+    gap: "8px",
+  },
+
+  rankCard: {
+    display: "grid",
+    gridTemplateColumns: "minmax(220px, 0.8fr) minmax(260px, 1.3fr) minmax(110px, 0.35fr)",
+    gap: "12px",
+    alignItems: "center",
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "14px",
+    padding: "10px",
+  },
+
+  rankLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "9px",
+    minWidth: 0,
+  },
+
+  rankNumber: {
+    width: "34px",
+    height: "34px",
+    borderRadius: "10px",
+    background: "#f1f5f9",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: "900",
+    color: "#334155",
+  },
+
+  rankAvatar: {
+    width: "44px",
+    height: "44px",
+    borderRadius: "999px",
+    objectFit: "cover",
+    border: "2px solid white",
+    boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
+  },
+
+  rankAvatarFallback: {
+    width: "44px",
+    height: "44px",
+    borderRadius: "999px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#dbeafe",
+    color: "#1e40af",
+    fontWeight: "900",
+  },
+
+  rankNameBlock: {
+    minWidth: 0,
+  },
+
+  rankName: {
+    margin: 0,
+    fontWeight: "900",
+    fontSize: "14px",
+  },
+
+  rankDivision: {
+    margin: "2px 0 0",
     color: "#64748b",
+    fontSize: "11px",
+    fontWeight: "800",
+  },
+
+  rankMiddle: {
+    display: "grid",
+    gap: "6px",
+  },
+
+  barTrack: {
+    width: "100%",
+    height: "12px",
+    borderRadius: "999px",
+    background: "#e2e8f0",
+    overflow: "hidden",
+  },
+
+  barFill: {
+    height: "100%",
+    borderRadius: "999px",
+    background: "linear-gradient(90deg, #2563eb, #60a5fa)",
+  },
+
+  facilityMiniList: {
+    display: "flex",
+    gap: "6px",
+    flexWrap: "wrap",
+    color: "#64748b",
+    fontSize: "10px",
+    fontWeight: "800",
+  },
+
+  rankStats: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    justifyItems: "end",
+    gap: "1px",
+    fontSize: "10px",
+    color: "#64748b",
+    fontWeight: "800",
+  },
+
+  emptyText: {
+    margin: 0,
+    color: "#64748b",
+    fontSize: "13px",
+    fontWeight: "800",
   },
 };
