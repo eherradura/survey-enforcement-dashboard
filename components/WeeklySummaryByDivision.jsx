@@ -21,15 +21,15 @@ const DIVISIONS = {
 };
 
 const CONSULTANT_PHOTOS = {
-  "Erick Herradura": "/Erick Herradura.jpg",
-  "Donna Kimura": "/Donna Kimura.jpg",
-  "Beth Clark": "/Beth Clark.jpg",
-  "Brenda Rojas": "/Brenda Washington.jpg",
-  "Gerly Orona": "/Gerly Orona.jpg",
-  "Guillermo Vicencio": "/Guillermo Vicencio.jpg",
-  "Jinkee Javier": "/Jinkee Javier.jpg",
-  "Melissa Acuna": "/Melissa Acuna.jpg",
-  "Sammy Balisbis": "/Sammy Balisbis.jpg",
+  "Erick Herradura": "/consultants/Erick Herradura.jpg",
+  "Donna Kimura": "/consultants/Donna Kimura.jpg",
+  "Beth Clark": "/consultants/Beth Clark.jpg",
+  "Brenda Rojas": "/consultants/Brenda Washington.jpg",
+  "Gerly Orona": "/consultants/Gerly Orona.jpg",
+  "Guillermo Vicencio": "/consultants/Guillermo Vicencio.jpg",
+  "Jinkee Javier": "/consultants/Jinkee Javier.jpg",
+  "Melissa Acuna": "/consultants/Melissa Acuna.jpg",
+  "Sammy Balisbis": "/consultants/Sammy Balisbis.jpg",
 };
 
 const FACILITY_CONSULTANT_MAP = {
@@ -89,6 +89,7 @@ const FACILITY_CONSULTANT_MAP = {
   "POMONA VISTA CARE CENTER": "Beth Clark",
   "SUN MAR NURSING": "Beth Clark",
   "SUN MAR NURSING CENTER": "Beth Clark",
+  "SUNSET MANOR": "Beth Clark",
 
   // Guillermo Vicencio
   "ANAHEIM": "Guillermo Vicencio",
@@ -310,7 +311,7 @@ function ConsultantAvatar({ consultant, size = 40 }) {
           color: "#1e40af",
           fontWeight: "900",
           flexShrink: 0,
-          fontSize: size <= 40 ? "12px" : "14px",
+          fontSize: size <= 42 ? "12px" : "14px",
         }}
       >
         {String(consultant || "?")
