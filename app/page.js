@@ -8,9 +8,7 @@ export default function Home() {
   const [driveData, setDriveData] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState("All Facilities");
   const [selectedYear, setSelectedYear] = useState("All Years");
-  const [selectedDocumentStatus, setSelectedDocumentStatus] = useState(
-    "All Document Statuses"
-  );
+  const [selectedSurveyTypes, setSelectedSurveyTypes] = useState([]);
   const [parsedDocs, setParsedDocs] = useState({});
   const [loadingDoc, setLoadingDoc] = useState(null);
   const [savedAnalysisCount, setSavedAnalysisCount] = useState(0);
@@ -282,38 +280,6 @@ export default function Home() {
     };
   }
 
-  function documentStatusMatchesFilter(submission) {
-    if (selectedDocumentStatus === "All Document Statuses") return true;
-
-    const documents = getRelevantDocumentsForSubmission(submission.id);
-    const status = getDocumentStatus(documents);
-
-    if (selectedDocumentStatus === "Missing Documents") {
-      return status.value === "Missing Documents";
-    }
-
-    if (selectedDocumentStatus === "Missing Cover Letter") {
-      return status.missingItems.includes("Cover Letter");
-    }
-
-    if (selectedDocumentStatus === "Missing CMS-2567 / Survey Document") {
-      return status.missingItems.includes("CMS-2567 / Survey Document");
-    }
-
-    if (selectedDocumentStatus === "Incomplete Documents") {
-      return (
-        status.value === "Incomplete Documents" ||
-        status.value === "Missing Documents"
-      );
-    }
-
-    if (selectedDocumentStatus === "Documents Complete") {
-      return status.value === "Documents Complete";
-    }
-
-    return true;
-  }
-
   function getSurveyTypeCardStyle(surveyType) {
     const type = String(surveyType || "").toLowerCase();
 
@@ -480,6 +446,20 @@ export default function Home() {
     return "Needs review";
   }
 
+  function toggleSurveyType(type) {
+    setSelectedSurveyTypes((prev) => {
+      if (prev.includes(type)) {
+        return prev.filter((item) => item !== type);
+      }
+
+      return [...prev, type];
+    });
+  }
+
+  function clearSurveyTypeFilter() {
+    setSelectedSurveyTypes([]);
+  }
+
   async function viewFindings({
     fileId,
     key,
@@ -540,16 +520,17 @@ export default function Home() {
     return ["All Years", ...Array.from(new Set(extractedYears)).sort().reverse()];
   }, [submissions]);
 
-  const documentStatusOptions = [
-    "All Document Statuses",
-    "Incomplete Documents",
-    "Missing Documents",
-    "Missing Cover Letter",
-    "Missing CMS-2567 / Survey Document",
-    "Documents Complete",
-  ];
+  const surveyTypes = useMemo(() => {
+    const types = submissions
+      .map((submission) => getAnswer(submission.answers, "4"))
+      .filter((type) => type && type !== "No information available");
+
+    return Array.from(new Set(types)).sort();
+  }, [submissions]);
 
   const filteredSubmissions = submissions.filter((submission) => {
+    const surveyType = getAnswer(submission.answers, "4");
+
     const facilityMatches =
       selectedFacility === "All Facilities" ||
       submission.answers?.["3"]?.answer === selectedFacility;
@@ -558,9 +539,11 @@ export default function Home() {
       selectedYear === "All Years" ||
       getYearFromSubmission(submission) === selectedYear;
 
-    const documentMatches = documentStatusMatchesFilter(submission);
+    const surveyTypeMatches =
+      selectedSurveyTypes.length === 0 ||
+      selectedSurveyTypes.includes(surveyType);
 
-    return facilityMatches && yearMatches && documentMatches;
+    return facilityMatches && yearMatches && surveyTypeMatches;
   });
 
   const severitySummary = filteredSubmissions.reduce((summary, submission) => {
@@ -641,9 +624,13 @@ export default function Home() {
           selectedFacility === "All Facilities" ||
           item.facility === selectedFacility;
 
-        return facilityMatches;
+        const surveyTypeMatches =
+          selectedSurveyTypes.length === 0 ||
+          selectedSurveyTypes.includes(item.surveyType);
+
+        return facilityMatches && surveyTypeMatches;
       });
-  }, [submissions, selectedFacility]);
+  }, [submissions, selectedFacility, selectedSurveyTypes]);
 
   return (
     <main style={styles.page}>
@@ -691,19 +678,46 @@ export default function Home() {
             </select>
           </div>
 
-          <div>
-            <label style={styles.label}>Document Status</label>
-            <select
-              value={selectedDocumentStatus}
-              onChange={(e) => setSelectedDocumentStatus(e.target.value)}
-              style={styles.select}
-            >
-              {documentStatusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
+          <div style={styles.surveyTypeFilterBox}>
+            <div style={styles.surveyTypeHeader}>
+              <label style={styles.label}>Survey Type</label>
+
+              {selectedSurveyTypes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearSurveyTypeFilter}
+                  style={styles.clearButton}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <div style={styles.checkboxWrap}>
+              {surveyTypes.length > 0 ? (
+                surveyTypes.map((type) => (
+                  <label key={type} style={styles.checkboxLabel}>
+                    <input
+                      type="checkbox"
+                      checked={selectedSurveyTypes.includes(type)}
+                      onChange={() => toggleSurveyType(type)}
+                      style={styles.checkboxInput}
+                    />
+                    <span>{type}</span>
+                  </label>
+                ))
+              ) : (
+                <span style={styles.noSurveyTypes}>No survey types found</span>
+              )}
+            </div>
+
+            <p style={styles.filterHint}>
+              {selectedSurveyTypes.length === 0
+                ? "Showing all survey types"
+                : `Showing ${selectedSurveyTypes.length} selected survey type${
+                    selectedSurveyTypes.length === 1 ? "" : "s"
+                  }`}
+            </p>
           </div>
         </div>
 
@@ -1050,9 +1064,9 @@ const styles = {
   },
 
   filterGrid: {
-    display: "flex",
+    display: "grid",
+    gridTemplateColumns: "minmax(220px, 0.7fr) minmax(170px, 0.45fr) minmax(320px, 1.4fr)",
     gap: "10px",
-    flexWrap: "wrap",
     background: "rgba(255,255,255,0.88)",
     backdropFilter: "blur(14px)",
     border: "1px solid rgba(226, 232, 240, 0.9)",
@@ -1077,8 +1091,73 @@ const styles = {
     border: "1px solid #cbd5e1",
     background: "white",
     fontSize: "13px",
-    minWidth: "220px",
+    width: "100%",
     outline: "none",
+  },
+
+  surveyTypeFilterBox: {
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: "12px",
+    padding: "8px",
+  },
+
+  surveyTypeHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "8px",
+  },
+
+  checkboxWrap: {
+    display: "flex",
+    gap: "6px",
+    flexWrap: "wrap",
+    marginTop: "4px",
+  },
+
+  checkboxLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: "5px",
+    background: "white",
+    border: "1px solid #cbd5e1",
+    borderRadius: "999px",
+    padding: "5px 8px",
+    fontSize: "11px",
+    fontWeight: "800",
+    color: "#334155",
+    cursor: "pointer",
+  },
+
+  checkboxInput: {
+    width: "13px",
+    height: "13px",
+    cursor: "pointer",
+  },
+
+  clearButton: {
+    background: "#e2e8f0",
+    color: "#334155",
+    border: "none",
+    borderRadius: "999px",
+    padding: "4px 8px",
+    fontSize: "10px",
+    fontWeight: "900",
+    cursor: "pointer",
+  },
+
+  filterHint: {
+    margin: "6px 0 0",
+    color: "#64748b",
+    fontSize: "10px",
+    fontWeight: "700",
+  },
+
+  noSurveyTypes: {
+    color: "#64748b",
+    fontSize: "11px",
+    fontWeight: "700",
   },
 
   tileGrid: {
