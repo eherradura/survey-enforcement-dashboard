@@ -1,5 +1,6 @@
 export const metadata = {
-  title: "Survey Enforcement Dashboard",
+  title: "Survey Dashboard",
+  description: "Survey Dashboard",
 };
 
 export default function RootLayout({ children }) {
