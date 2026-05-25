@@ -72,6 +72,12 @@ const FACILITY_CONSULTANT_MAP = {
   // Erick Herradura
   "PARK RETIREMENT": "Erick Herradura",
   "PARK REGENCY RETIREMENT CENTER": "Erick Herradura",
+  "PARK RETIREMENT": "Erick Herradura",
+"PARK REGENCY RETIREMENT CENTER": "Erick Herradura",
+"PARK REGENCY RETIREMENT": "Erick Herradura",
+"PARK REGENCY RETIREMENT ALF": "Erick Herradura",
+"PARK REGENCY RETIREMENT ALF PRR": "Erick Herradura",
+"PRR": "Erick Herradura",
 
   // Donna Kimura
   "BLOSSOM GROVE": "Donna Kimura",
