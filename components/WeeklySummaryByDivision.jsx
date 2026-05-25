@@ -21,8 +21,8 @@ const DIVISIONS = {
 };
 
 const CONSULTANT_PHOTOS = {
-  Erick Herradura: "/Erick Herradura.jpg",
-  Donna Kimura: "/Donna Kimura.jpg",
+  "Erick Herradura": "/Erick Herradura.jpg",
+  "Donna Kimura": "/Donna Kimura.jpg",
   "Beth Clark": "/Beth Clark.jpg",
   "Brenda Washington": "/Brenda Washington.jpg",
   "Gerly Orona": "/Gerly Orona.jpg",
@@ -43,8 +43,10 @@ const FACILITY_CONSULTANT_MAP = {
   "MISSION CARMICHAEL": "Jinkee Javier",
   "ALCOTT REHABILITATION HOSPITAL": "Jinkee Javier",
   "COLLEGE VISTA POST-ACUTE": "Jinkee Javier",
+  "COLLEGE VISTA POST ACUTE": "Jinkee Javier",
   "COUNTRY OAKS CARE CENTER": "Jinkee Javier",
   "COUNTRY OAKS CARE CENTER SUB-ACUTE": "Jinkee Javier",
+  "COUNTRY OAKS CARE CENTER SUB ACUTE": "Jinkee Javier",
 
   // Beth
   "POMONA VISTA CARE CENTER": "Beth Clark",
@@ -55,10 +57,12 @@ const FACILITY_CONSULTANT_MAP = {
   // Guillermo
   "ANAHEIM HEALTHCARE CENTER": "Guillermo Vicencio",
   "BONITA HILLS POST-ACUTE": "Guillermo Vicencio",
+  "BONITA HILLS POST ACUTE": "Guillermo Vicencio",
   "FRENCH PARK CARE CENTER": "Guillermo Vicencio",
   "GORDON LANE CARE CENTER": "Guillermo Vicencio",
   "PARK REGENCY CARE CENTER": "Guillermo Vicencio",
   "PELICAN RIDGE POST-ACUTE": "Guillermo Vicencio",
+  "PELICAN RIDGE POST ACUTE": "Guillermo Vicencio",
 
   // Brenda
   "HERITAGE MANOR": "Brenda Washington",
@@ -66,14 +70,17 @@ const FACILITY_CONSULTANT_MAP = {
   "MONTEREY PARK CONVALESCENT HOSPITAL": "Brenda Washington",
   "NORBY VALLEY NURSING CENTER": "Brenda Washington",
   "PACIFIC POST-ACUTE": "Brenda Washington",
+  "PACIFIC POST ACUTE": "Brenda Washington",
   "TARZANA HEALTH AND REHABILITATION CENTER": "Brenda Washington",
   "THE MEADOWS ON SUNSET": "Brenda Washington",
   "WHITTIER POST-ACUTE": "Brenda Washington",
+  "WHITTIER POST ACUTE": "Brenda Washington",
 
   // Melissa
   "CITRUS NURSING CENTER": "Melissa Acuna",
   "COMMUNITY CARE AND REHABILITATION CENTER": "Melissa Acuna",
   "MERCED LAKE POST-ACUTE": "Melissa Acuna",
+  "MERCED LAKE POST ACUTE": "Melissa Acuna",
   "MISSION CARE CENTER": "Melissa Acuna",
   "TALBOUC HILLS POST-ACUTE": "Melissa Acuna",
   "TALBOUC HILLS POST ACUTE": "Melissa Acuna",
@@ -103,12 +110,12 @@ const FACILITY_CONSULTANT_MAP = {
   "VILLA DEL SOL POST ACUTE": "Sammy Balisbis",
   "PARK REGENCY RETIREMENT CENTER": "Sammy Balisbis",
 
-  // Erick
-  "BLOSSOM GROVE": "Erick",
+  // Erick Herradura
+  "BLOSSOM GROVE": "Erick Herradura",
 
-  // Donna
-  "DEL MAR CONVALESCENT": "Donna",
-  "DEL MAR CONVALESCENT CENTER": "Donna",
+  // Donna Kimura
+  "DEL MAR CONVALESCENT": "Donna Kimura",
+  "DEL MAR CONVALESCENT CENTER": "Donna Kimura",
 };
 
 const DEFICIENCY_POINTS = {
@@ -244,68 +251,47 @@ function calculateSubmissionPoints(parsedFindings) {
   };
 }
 
-function ConsultantPhoto({ consultant, size = 38 }) {
+function ConsultantAvatar({ consultant, size = 40 }) {
   const photo = CONSULTANT_PHOTOS[consultant];
 
-  if (photo) {
+  if (!photo) {
     return (
-      <img
-        src={photo}
-        alt={consultant}
+      <div
         style={{
           width: size,
           height: size,
           borderRadius: "999px",
-          objectFit: "cover",
-          border: "2px solid white",
-          boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#dbeafe",
+          color: "#1e40af",
+          fontWeight: "900",
+          flexShrink: 0,
         }}
-        onError={(event) => {
-          event.currentTarget.style.display = "none";
-          const fallback = event.currentTarget.nextSibling;
-          if (fallback) fallback.style.display = "flex";
-        }}
-      />
+      >
+        {String(consultant || "?").slice(0, 1)}
+      </div>
     );
   }
 
-  return null;
-}
-
-function ConsultantFallback({ consultant, size = 38 }) {
   return (
-    <div
+    <img
+      src={photo}
+      alt={consultant}
       style={{
         width: size,
         height: size,
         borderRadius: "999px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#dbeafe",
-        color: "#1e40af",
-        fontWeight: "900",
+        objectFit: "cover",
+        border: "2px solid white",
+        boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
+        flexShrink: 0,
       }}
-    >
-      {String(consultant || "?").slice(0, 1)}
-    </div>
-  );
-}
-
-function ConsultantAvatar({ consultant, size = 38 }) {
-  const photo = CONSULTANT_PHOTOS[consultant];
-
-  if (!photo) {
-    return <ConsultantFallback consultant={consultant} size={size} />;
-  }
-
-  return (
-    <div style={{ position: "relative", width: size, height: size }}>
-      <ConsultantPhoto consultant={consultant} size={size} />
-      <div style={{ display: "none" }}>
-        <ConsultantFallback consultant={consultant} size={size} />
-      </div>
-    </div>
+      onError={(event) => {
+        event.currentTarget.style.display = "none";
+      }}
+    />
   );
 }
 
@@ -319,26 +305,11 @@ export default function WeeklySummaryByDivision({
 
   const weeklyEventCount = weeklySummaryItems.length;
 
-  const allConsultantsForWeeklyDisplay = useMemo(() => {
-    const list = [];
-
-    Object.entries(DIVISIONS).forEach(([division, consultants]) => {
-      consultants.forEach((consultant) => {
-        list.push({
-          consultant,
-          division,
-        });
-      });
-    });
-
-    return list;
-  }, []);
-
   const groupedWeeklyItems = useMemo(() => {
     const groups = {};
 
     Object.entries(DIVISIONS).forEach(([division, consultants]) => {
-      if (!groups[division]) groups[division] = {};
+      groups[division] = {};
 
       consultants.forEach((consultant) => {
         groups[division][consultant] = [];
@@ -561,51 +532,12 @@ export default function WeeklySummaryByDivision({
               </div>
             </div>
           ))}
-
-          {groupedWeeklyItems.Unassigned &&
-            Object.keys(groupedWeeklyItems.Unassigned).length > 0 && (
-              <div style={styles.divisionBlock}>
-                <h3 style={styles.divisionTitle}>Unassigned</h3>
-
-                <div style={styles.consultantGrid}>
-                  {Object.entries(groupedWeeklyItems.Unassigned).map(
-                    ([consultant, items]) => (
-                      <div key={consultant} style={styles.consultantCard}>
-                        <div style={styles.consultantHeader}>
-                          <ConsultantAvatar consultant={consultant} size={40} />
-
-                          <div>
-                            <p style={styles.consultantName}>{consultant}</p>
-                            <p style={styles.smallMuted}>
-                              {items.length} event
-                              {items.length === 1 ? "" : "s"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div style={styles.eventList}>
-                          {items.map((item) => (
-                            <div key={item.id} style={styles.weeklyEvent}>
-                              <strong>{item.facility}</strong>
-                              <span>
-                                {item.date} — {item.surveyType}
-                              </span>
-                              <em>{item.comments || "No comments entered"}</em>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-            )}
         </div>
       ) : (
         <div style={styles.standingContent}>
           <div style={styles.standingNote}>
-            Best to worst is based on current-year total deficiency points
-            from parsed findings. Lower points are better.
+            Best to worst is based on current-year total deficiency points from
+            parsed findings. Lower points are better.
           </div>
 
           <div style={styles.rankingList}>
