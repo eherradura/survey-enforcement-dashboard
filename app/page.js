@@ -83,6 +83,9 @@ export default function Home() {
               .map((d) => d.scopeSeverity)
               .filter(Boolean),
             severitySummary: record.severitySummary || "",
+            noDeficiencyLetter:
+              record.noDeficiencyLetter === true ||
+              record.noDeficiencyLetter === "true",
             loadedFromSavedAnalysis: true,
             parsedAt: record.parsedAt || null,
           };
@@ -351,6 +354,12 @@ export default function Home() {
 
     if (parsedFindings.length === 0) return null;
 
+    const noDeficiency = parsedFindings.find(
+      (parsed) => parsed.noDeficiencyLetter === true
+    );
+
+    if (noDeficiency) return noDeficiency;
+
     const withDeficiencies = parsedFindings.find(
       (parsed) =>
         Array.isArray(parsed.deficiencies) && parsed.deficiencies.length > 0
@@ -369,6 +378,11 @@ export default function Home() {
 
   function getDisplayDpnaDate(submission) {
     const parsed = getBestParsedAnalysisForSubmission(submission.id);
+
+    if (parsed?.noDeficiencyLetter) {
+      return "Not applicable";
+    }
+
     const parsedDate = parsed?.dpnaDateFromPdf;
 
     if (parsedDate) return parsedDate;
@@ -384,6 +398,11 @@ export default function Home() {
 
   function getDisplayTerminationDate(submission) {
     const parsed = getBestParsedAnalysisForSubmission(submission.id);
+
+    if (parsed?.noDeficiencyLetter) {
+      return "Not applicable";
+    }
+
     const parsedDate = parsed?.terminationDateFromPdf;
 
     if (parsedDate) return parsedDate;
@@ -397,11 +416,23 @@ export default function Home() {
     return "No information available";
   }
 
-  function getApprovedCompletionDateDisplay() {
+  function getApprovedCompletionDateDisplay(submission) {
+    const parsed = getBestParsedAnalysisForSubmission(submission.id);
+
+    if (parsed?.noDeficiencyLetter) {
+      return "Not applicable";
+    }
+
     return "Pending information source";
   }
 
-  function getEnforcementCycleDisplay() {
+  function getEnforcementCycleDisplay(submission) {
+    const parsed = getBestParsedAnalysisForSubmission(submission.id);
+
+    if (parsed?.noDeficiencyLetter) {
+      return "None open";
+    }
+
     return "Needs review";
   }
 
@@ -509,6 +540,8 @@ export default function Home() {
     const parsedFindings = getParsedFindingsForSubmission(submission.id);
 
     parsedFindings.forEach((parsed) => {
+      if (parsed.noDeficiencyLetter) return;
+
       (parsed.deficiencies || []).forEach((deficiency) => {
         const severity = deficiency.scopeSeverity || "Unknown";
         summary[severity] = (summary[severity] || 0) + 1;
@@ -793,7 +826,9 @@ export default function Home() {
 
               <div style={styles.detailItem}>
                 <span style={styles.detailLabel}>Enforcement Cycle</span>
-                <p style={styles.reviewValue}>{getEnforcementCycleDisplay()}</p>
+                <p style={styles.reviewValue}>
+                  {getEnforcementCycleDisplay(submission)}
+                </p>
               </div>
 
               <div style={styles.commentsItem}>
@@ -890,7 +925,11 @@ export default function Home() {
                               </p>
                             )}
 
-                            {parsed.deficiencies?.length > 0 ? (
+                            {parsed.noDeficiencyLetter ? (
+                              <p style={styles.findingLine}>
+                                <strong>Deficiency:</strong> No deficiency
+                              </p>
+                            ) : parsed.deficiencies?.length > 0 ? (
                               <div style={styles.deficiencyList}>
                                 <strong>Deficiency Detail:</strong>
                                 <div style={styles.pillWrap}>
