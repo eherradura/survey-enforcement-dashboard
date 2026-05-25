@@ -23,34 +23,34 @@ const DIVISIONS = {
 const DIVISION_STYLES = {
   "Erick Herradura's Division": {
     shellBackground:
-      "linear-gradient(135deg, rgba(239,246,255,0.96), rgba(255,255,255,0.96))",
+      "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(255,255,255,0.98))",
     border: "1px solid #bfdbfe",
     accent: "#2563eb",
     softAccent: "#dbeafe",
     text: "#1e3a8a",
-    cardBackground: "#f8fbff",
+    cardBackground: "#ffffff",
     badgeBackground: "#dbeafe",
     badgeText: "#1e40af",
   },
   "Donna Kimura's Division": {
     shellBackground:
-      "linear-gradient(135deg, rgba(240,253,244,0.96), rgba(255,255,255,0.96))",
+      "linear-gradient(135deg, rgba(240,253,244,0.98), rgba(255,255,255,0.98))",
     border: "1px solid #bbf7d0",
     accent: "#16a34a",
     softAccent: "#dcfce7",
     text: "#166534",
-    cardBackground: "#f8fffb",
+    cardBackground: "#ffffff",
     badgeBackground: "#dcfce7",
     badgeText: "#166534",
   },
   Unassigned: {
     shellBackground:
-      "linear-gradient(135deg, rgba(248,250,252,0.96), rgba(255,255,255,0.96))",
+      "linear-gradient(135deg, rgba(248,250,252,0.98), rgba(255,255,255,0.98))",
     border: "1px solid #cbd5e1",
     accent: "#64748b",
     softAccent: "#f1f5f9",
     text: "#334155",
-    cardBackground: "#f8fafc",
+    cardBackground: "#ffffff",
     badgeBackground: "#f1f5f9",
     badgeText: "#334155",
   },
@@ -71,13 +71,11 @@ const CONSULTANT_PHOTOS = {
 const FACILITY_CONSULTANT_MAP = {
   // Erick Herradura
   "PARK RETIREMENT": "Erick Herradura",
+  "PARK REGENCY RETIREMENT": "Erick Herradura",
   "PARK REGENCY RETIREMENT CENTER": "Erick Herradura",
-  "PARK RETIREMENT": "Erick Herradura",
-"PARK REGENCY RETIREMENT CENTER": "Erick Herradura",
-"PARK REGENCY RETIREMENT": "Erick Herradura",
-"PARK REGENCY RETIREMENT ALF": "Erick Herradura",
-"PARK REGENCY RETIREMENT ALF PRR": "Erick Herradura",
-"PRR": "Erick Herradura",
+  "PARK REGENCY RETIREMENT ALF": "Erick Herradura",
+  "PARK REGENCY RETIREMENT ALF PRR": "Erick Herradura",
+  "PRR": "Erick Herradura",
 
   // Donna Kimura
   "BLOSSOM GROVE": "Donna Kimura",
@@ -399,7 +397,7 @@ function calculateSubmissionPoints(parsedFindings) {
   };
 }
 
-function ConsultantAvatar({ consultant, size = 100 }) {
+function ConsultantAvatar({ consultant, size = 48 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const photo = CONSULTANT_PHOTOS[consultant];
 
@@ -409,7 +407,7 @@ function ConsultantAvatar({ consultant, size = 100 }) {
         style={{
           width: size,
           height: size,
-          borderRadius: "999px",
+          borderRadius: "14px",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -417,8 +415,7 @@ function ConsultantAvatar({ consultant, size = 100 }) {
           color: "#1e40af",
           fontWeight: "950",
           flexShrink: 0,
-          fontSize: size <= 60 ? "16px" : "26px",
-          margin: "0 auto",
+          fontSize: size <= 52 ? "14px" : "20px",
         }}
       >
         {String(consultant || "?")
@@ -437,13 +434,12 @@ function ConsultantAvatar({ consultant, size = 100 }) {
       style={{
         width: size,
         height: size,
-        borderRadius: "999px",
+        borderRadius: "14px",
         objectFit: "cover",
-        border: "5px solid white",
-        boxShadow: "0 10px 24px rgba(15,23,42,0.2)",
+        border: "2px solid white",
+        boxShadow: "0 5px 14px rgba(15,23,42,0.14)",
         flexShrink: 0,
         background: "#e2e8f0",
-        margin: "0 auto",
         display: "block",
       }}
       onError={() => setImageFailed(true)}
@@ -615,7 +611,7 @@ export default function WeeklySummaryByDivision({
           <button
             type="button"
             onClick={() => onDashboardViewChange?.("weekly")}
-            style={styles.linkButton}
+            style={styles.primaryTextButton}
           >
             Back to Weekly Summary
           </button>
@@ -635,7 +631,7 @@ export default function WeeklySummaryByDivision({
                   key={consultant.consultant}
                   style={{
                     ...styles.standingRankCard,
-                    borderLeft: `8px solid ${divisionStyle.accent}`,
+                    borderLeft: `7px solid ${divisionStyle.accent}`,
                   }}
                 >
                   <div style={styles.standingConsultantBlock}>
@@ -651,7 +647,7 @@ export default function WeeklySummaryByDivision({
 
                     <ConsultantAvatar
                       consultant={consultant.consultant}
-                      size={112}
+                      size={82}
                     />
 
                     <div style={styles.standingNameBlock}>
@@ -721,7 +717,7 @@ export default function WeeklySummaryByDivision({
         <button
           type="button"
           onClick={() => onDashboardViewChange?.("standing")}
-          style={styles.linkButton}
+          style={styles.primaryTextButton}
         >
           Facility Standing
         </button>
@@ -734,6 +730,10 @@ export default function WeeklySummaryByDivision({
 
         {Object.entries(groupedWeeklyItems).map(([division, consultants]) => {
           const divisionStyle = getDivisionStyle(division);
+          const divisionEventCount = Object.values(consultants).reduce(
+            (total, items) => total + items.length,
+            0
+          );
 
           return (
             <div
@@ -742,18 +742,23 @@ export default function WeeklySummaryByDivision({
                 ...styles.divisionBlock,
                 background: divisionStyle.shellBackground,
                 border: divisionStyle.border,
-                borderTop: `5px solid ${divisionStyle.accent}`,
+                borderLeft: `6px solid ${divisionStyle.accent}`,
               }}
             >
               <div style={styles.divisionHeader}>
-                <h3
-                  style={{
-                    ...styles.divisionTitle,
-                    color: divisionStyle.text,
-                  }}
-                >
-                  {division}
-                </h3>
+                <div>
+                  <h3
+                    style={{
+                      ...styles.divisionTitle,
+                      color: divisionStyle.text,
+                    }}
+                  >
+                    {division}
+                  </h3>
+                  <p style={styles.divisionSubtext}>
+                    Weekly survey activity by assigned consultant
+                  </p>
+                </div>
 
                 <span
                   style={{
@@ -762,11 +767,7 @@ export default function WeeklySummaryByDivision({
                     color: divisionStyle.badgeText,
                   }}
                 >
-                  {Object.values(consultants).reduce(
-                    (total, items) => total + items.length,
-                    0
-                  )}{" "}
-                  events
+                  {divisionEventCount} events
                 </span>
               </div>
 
@@ -777,11 +778,10 @@ export default function WeeklySummaryByDivision({
                     style={{
                       ...styles.consultantCard,
                       background: divisionStyle.cardBackground,
-                      borderTop: `5px solid ${divisionStyle.accent}`,
                     }}
                   >
                     <div style={styles.consultantHeader}>
-                      <ConsultantAvatar consultant={consultant} size={86} />
+                      <ConsultantAvatar consultant={consultant} size={52} />
 
                       <div style={styles.consultantTextBlock}>
                         <p style={styles.consultantName}>{consultant}</p>
@@ -799,10 +799,13 @@ export default function WeeklySummaryByDivision({
                       <div style={styles.eventList}>
                         {items.map((item) => (
                           <div key={item.id} style={styles.weeklyEvent}>
-                            <strong>{item.facility}</strong>
-                            <span>
-                              {item.date} — {item.surveyType}
-                            </span>
+                            <div style={styles.eventTopLine}>
+                              <strong>{item.facility}</strong>
+                              <span>{item.date}</span>
+                            </div>
+                            <p style={styles.eventSurveyType}>
+                              {item.surveyType}
+                            </p>
                             <em>{item.comments || "No comments entered"}</em>
                           </div>
                         ))}
@@ -821,7 +824,7 @@ export default function WeeklySummaryByDivision({
 
 const styles = {
   wrapper: {
-    background: "rgba(255,255,255,0.94)",
+    background: "rgba(255,255,255,0.96)",
     border: "1px solid rgba(226,232,240,0.95)",
     borderRadius: "18px",
     padding: "14px",
@@ -888,22 +891,21 @@ const styles = {
     letterSpacing: "-0.3px",
   },
 
-  linkButton: {
-    border: "none",
-    background: "transparent",
-    color: "#2563eb",
+  primaryTextButton: {
+    border: "1px solid #bfdbfe",
+    background: "#eff6ff",
+    color: "#1d4ed8",
     fontWeight: "900",
     fontSize: "13px",
     cursor: "pointer",
-    textDecoration: "underline",
-    textUnderlineOffset: "3px",
-    padding: "4px 0",
+    borderRadius: "999px",
+    padding: "8px 12px",
     whiteSpace: "nowrap",
   },
 
   weeklyContent: {
     display: "grid",
-    gap: "14px",
+    gap: "12px",
   },
 
   divisionBlock: {
@@ -922,14 +924,21 @@ const styles = {
 
   divisionTitle: {
     margin: 0,
-    fontSize: "15px",
+    fontSize: "16px",
     fontWeight: "950",
     letterSpacing: "-0.1px",
   },
 
+  divisionSubtext: {
+    margin: "2px 0 0",
+    color: "#64748b",
+    fontSize: "11px",
+    fontWeight: "750",
+  },
+
   divisionBadge: {
     borderRadius: "999px",
-    padding: "5px 10px",
+    padding: "6px 10px",
     fontSize: "11px",
     fontWeight: "900",
     whiteSpace: "nowrap",
@@ -937,49 +946,45 @@ const styles = {
 
   consultantGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
     gap: "10px",
   },
 
   consultantCard: {
     border: "1px solid #e2e8f0",
-    borderRadius: "16px",
-    padding: "14px 12px 12px",
-    minHeight: "205px",
-    textAlign: "center",
+    borderRadius: "14px",
+    padding: "10px",
+    minHeight: "92px",
+    boxShadow: "0 4px 10px rgba(15,23,42,0.025)",
   },
 
   consultantHeader: {
     display: "flex",
-    flexDirection: "column",
     alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
-    marginBottom: "12px",
-    textAlign: "center",
+    gap: "10px",
+    marginBottom: "9px",
+    textAlign: "left",
   },
 
   consultantTextBlock: {
     display: "grid",
-    justifyItems: "center",
     gap: "2px",
+    minWidth: 0,
   },
 
   consultantName: {
     margin: 0,
     fontWeight: "950",
-    fontSize: "18px",
+    fontSize: "16px",
     lineHeight: 1.15,
-    letterSpacing: "-0.25px",
-    textAlign: "center",
+    letterSpacing: "-0.2px",
   },
 
   smallMuted: {
-    margin: "2px 0 0",
+    margin: 0,
     color: "#64748b",
     fontSize: "12px",
     fontWeight: "850",
-    textAlign: "center",
   },
 
   noConsultantEvents: {
@@ -987,7 +992,7 @@ const styles = {
     color: "#94a3b8",
     fontSize: "12px",
     fontWeight: "850",
-    background: "white",
+    background: "#f8fafc",
     border: "1px dashed #cbd5e1",
     borderRadius: "10px",
     padding: "8px",
@@ -1002,12 +1007,26 @@ const styles = {
 
   weeklyEvent: {
     display: "grid",
-    gap: "2px",
-    background: "white",
+    gap: "3px",
+    background: "#f8fafc",
     border: "1px solid #e5e7eb",
     borderRadius: "10px",
-    padding: "7px",
+    padding: "8px",
     fontSize: "12px",
+  },
+
+  eventTopLine: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "8px",
+  },
+
+  eventSurveyType: {
+    margin: 0,
+    color: "#334155",
+    fontWeight: "800",
+    fontSize: "11px",
   },
 
   standingHeaderRow: {
@@ -1042,7 +1061,7 @@ const styles = {
   standingRankCard: {
     display: "grid",
     gridTemplateColumns:
-      "minmax(280px, 0.9fr) minmax(420px, 1.4fr) minmax(160px, 0.35fr)",
+      "minmax(260px, 0.85fr) minmax(420px, 1.4fr) minmax(160px, 0.35fr)",
     gap: "18px",
     alignItems: "center",
     background: "#ffffff",
@@ -1053,10 +1072,10 @@ const styles = {
   },
 
   standingConsultantBlock: {
-    display: "grid",
-    justifyItems: "center",
-    textAlign: "center",
-    gap: "9px",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    textAlign: "left",
   },
 
   standingRankNumber: {
@@ -1064,16 +1083,18 @@ const styles = {
     padding: "5px 12px",
     fontSize: "14px",
     fontWeight: "950",
+    flexShrink: 0,
   },
 
   standingNameBlock: {
     display: "grid",
     gap: "2px",
+    minWidth: 0,
   },
 
   standingConsultantName: {
     margin: 0,
-    fontSize: "24px",
+    fontSize: "22px",
     fontWeight: "950",
     letterSpacing: "-0.5px",
     lineHeight: 1.1,
