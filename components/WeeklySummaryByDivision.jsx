@@ -5,8 +5,19 @@ import { useMemo, useState } from "react";
 const CURRENT_YEAR = new Date().getFullYear();
 
 const DIVISIONS = {
-  "Erick's Division": ["Beth Clark", "Jinkee Javier", "Guillermo Vicencio", "Brenda Washington"],
-  "Donna's Division": ["Gerly Orona", "Melissa Acuna", "Sammy Balisbis"],
+  "Erick's Division": [
+    "Erick",
+    "Beth Clark",
+    "Jinkee Javier",
+    "Guillermo Vicencio",
+    "Brenda Washington",
+  ],
+  "Donna's Division": [
+    "Donna",
+    "Gerly Orona",
+    "Melissa Acuna",
+    "Sammy Balisbis",
+  ],
 };
 
 const CONSULTANT_PHOTOS = {
@@ -17,17 +28,81 @@ const CONSULTANT_PHOTOS = {
   "Jinkee Javier": "/Jinkee Javier.jpg",
   "Melissa Acuna": "/Melissa Acuna.jpg",
   "Sammy Balisbis": "/Sammy Balisbis.jpg",
+  Erick: null,
+  Donna: null,
 };
 
-// Add or correct facility assignments here.
-// Use uppercase facility names as keys.
+// Facility-to-consultant assignment map.
+// Use uppercase normalized facility names as keys.
 const FACILITY_CONSULTANT_MAP = {
-  "MISSION CARE CENTER": "Melissa Acuna",
+  // Jinkee
+  "COURTYARD CARE CENTER": "Jinkee Javier",
+  "CRESCENT CITY CARE CENTER": "Jinkee Javier",
+  "DIAMOND RIDGE HEALTHCARE CENTER": "Jinkee Javier",
+  "EXCEL HEALTHCARE CENTER": "Jinkee Javier",
+  "MADEIRA CARE CENTER": "Jinkee Javier",
+  "MISSION CARMICHAEL HEALTHCARE CENTER": "Jinkee Javier",
   "MISSION CARMICHAEL": "Jinkee Javier",
+  "ALCOTT REHABILITATION HOSPITAL": "Jinkee Javier",
+  "COLLEGE VISTA POST-ACUTE": "Jinkee Javier",
+  "COUNTRY OAKS CARE CENTER": "Jinkee Javier",
+
+  // Beth
+  "POMONA VISTA CARE CENTER": "Beth Clark",
+  "SUN MAR NURSING CENTER": "Beth Clark",
+  "SUNNYSIDE CONV HOSPITAL": "Beth Clark",
+  "SUNNYSIDE CONVALESCENT HOSPITAL": "Beth Clark",
+
+  // Guillermo
+  "ANAHEIM HEALTHCARE CENTER": "Guillermo Vicencio",
+  "BONITA HILLS POST-ACUTE": "Guillermo Vicencio",
+  "FRENCH PARK CARE CENTER": "Guillermo Vicencio",
+  "GORDON LANE CARE CENTER": "Guillermo Vicencio",
+  "PARK REGENCY CARE CENTER": "Guillermo Vicencio",
+  "PELICAN RIDGE POST-ACUTE": "Guillermo Vicencio",
+
+  // Brenda
+  "HERITAGE MANOR": "Brenda Washington",
+  "MONTEREY PARK CONV HOSP": "Brenda Washington",
+  "MONTEREY PARK CONVALESCENT HOSPITAL": "Brenda Washington",
+  "NORBY VALLEY NURSING CENTER": "Brenda Washington",
+  "PACIFIC POST-ACUTE": "Brenda Washington",
+  "TARZANA HEALTH AND REHABILITATION CENTER": "Brenda Washington",
+  "THE MEADOWS ON SUNSET": "Brenda Washington",
+  "WHITTIER POST-ACUTE": "Brenda Washington",
+
+  // Melissa
+  "CITRUS NURSING CENTER": "Melissa Acuna",
+  "COMMUNITY CARE AND REHABILITATION CENTER": "Melissa Acuna",
+  "MERCED LAKE POST-ACUTE": "Melissa Acuna",
+  "MISSION CARE CENTER": "Melissa Acuna",
+  "TALBOUC HILLS POST-ACUTE": "Melissa Acuna",
+  "VICTORIA CARE CENTER": "Melissa Acuna",
+
+  // Gerly
+  "EXTENDED CARE HOSPITAL OF RIVERSIDE": "Gerly Orona",
+  "GARDEN PARK CARE CENTER": "Gerly Orona",
+  "MOUNTAIN VIEW POST-ACUTE": "Gerly Orona",
+  "OCEAN VIEW POST-ACUTE": "Gerly Orona",
+  "VILLA RANCHO BERNARDO CARE CENTER": "Gerly Orona",
+  "VISTA VIEW POST-ACUTE": "Gerly Orona",
+
+  // Sammy
+  "COTTAGE CREST POST-ACUTE": "Sammy Balisbis",
+  "PARAMOUNT CONVALESCENT HOSPITAL": "Sammy Balisbis",
+  "SEAVIEW CARE CENTER": "Sammy Balisbis",
+  "SUNNY HILLS POST-ACUTE": "Sammy Balisbis",
+  "THE GROVE POST-ACUTE": "Sammy Balisbis",
+  "VILLA DEL SOL POST-ACUTE": "Sammy Balisbis",
+  "PARK REGENCY RETIREMENT CENTER": "Sammy Balisbis",
+
+  // Erick
+  "BLOSSOM GROVE": "Erick",
+
+  // Donna
+  "DEL MAR CONVALESCENT": "Donna",
 };
 
-// CMS health inspection deficiency point weights.
-// This is regular scope/severity scoring, not SQOC/revisit-adjusted scoring.
 const DEFICIENCY_POINTS = {
   A: 0,
   B: 0,
@@ -47,7 +122,10 @@ function normalizeFacilityName(value) {
   return String(value || "")
     .trim()
     .toUpperCase()
-    .replace(/\s+/g, " ");
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[^A-Z0-9\s-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function getConsultantForFacility(facilityName) {
@@ -57,8 +135,9 @@ function getConsultantForFacility(facilityName) {
     return FACILITY_CONSULTANT_MAP[normalized];
   }
 
-  const partialMatch = Object.entries(FACILITY_CONSULTANT_MAP).find(([facility]) =>
-    normalized.includes(facility)
+  const partialMatch = Object.entries(FACILITY_CONSULTANT_MAP).find(
+    ([facility]) =>
+      normalized.includes(facility) || facility.includes(normalized)
   );
 
   if (partialMatch) {
@@ -132,7 +211,10 @@ function calculateSubmissionPoints(parsedFindings) {
     if (parsed.noDeficiencyLetter) return;
 
     (parsed.deficiencies || []).forEach((deficiency) => {
-      const severity = String(deficiency.scopeSeverity || "").trim().toUpperCase();
+      const severity = String(deficiency.scopeSeverity || "")
+        .trim()
+        .toUpperCase();
+
       const points = getSeverityPoints(severity);
 
       totalPoints += points;
@@ -194,14 +276,24 @@ export default function WeeklySummaryByDivision({
 
     submissions.forEach((submission) => {
       const answers = submission.answers || {};
-      const facility = getAnswer ? getAnswer(answers, "3") : answers?.["3"]?.answer;
-      const surveyDate = getAnswer ? getAnswer(answers, "5") : answers?.["5"]?.answer;
+      const facility = getAnswer
+        ? getAnswer(answers, "3")
+        : answers?.["3"]?.answer;
+
+      const surveyDate = getAnswer
+        ? getAnswer(answers, "5")
+        : answers?.["5"]?.answer;
+
       const surveyYear = getYearFromDateValue(surveyDate);
 
       if (surveyYear !== CURRENT_YEAR) return;
 
       const consultant = getConsultantForFacility(facility);
-      const parsedFindings = getParsedFindingsForSubmission(parsedDocs, submission.id);
+      const parsedFindings = getParsedFindingsForSubmission(
+        parsedDocs,
+        submission.id
+      );
+
       const pointsSummary = calculateSubmissionPoints(parsedFindings);
 
       if (!consultantMap[consultant]) {
@@ -219,7 +311,8 @@ export default function WeeklySummaryByDivision({
 
       consultantMap[consultant].surveyCount += 1;
       consultantMap[consultant].totalPoints += pointsSummary.totalPoints;
-      consultantMap[consultant].deficiencyCount += pointsSummary.deficiencyCount;
+      consultantMap[consultant].deficiencyCount +=
+        pointsSummary.deficiencyCount;
 
       const facilityKey = facility || "Unknown Facility";
 
@@ -232,7 +325,9 @@ export default function WeeklySummaryByDivision({
         });
       }
 
-      const facilityRecord = consultantMap[consultant].facilities.get(facilityKey);
+      const facilityRecord =
+        consultantMap[consultant].facilities.get(facilityKey);
+
       facilityRecord.points += pointsSummary.totalPoints;
       facilityRecord.deficiencyCount += pointsSummary.deficiencyCount;
       facilityRecord.surveyCount += 1;
@@ -255,10 +350,18 @@ export default function WeeklySummaryByDivision({
         ),
       }))
       .sort((a, b) => {
-        if (a.totalPoints !== b.totalPoints) return a.totalPoints - b.totalPoints;
+        if (a.totalPoints !== b.totalPoints) {
+          return a.totalPoints - b.totalPoints;
+        }
+
         if (a.deficiencyCount !== b.deficiencyCount) {
           return a.deficiencyCount - b.deficiencyCount;
         }
+
+        if (a.surveyCount !== b.surveyCount) {
+          return b.surveyCount - a.surveyCount;
+        }
+
         return a.consultant.localeCompare(b.consultant);
       });
 
@@ -267,7 +370,11 @@ export default function WeeklySummaryByDivision({
     return ranked.map((item, index) => ({
       ...item,
       rank: index + 1,
-      barWidth: `${Math.max((item.totalPoints / maxPoints) * 100, item.totalPoints > 0 ? 8 : 2)}%`,
+      barWidth: `${
+        item.totalPoints === 0
+          ? 2
+          : Math.max((item.totalPoints / maxPoints) * 100, 8)
+      }%`,
     }));
   }, [submissions, parsedDocs, getAnswer]);
 
@@ -320,7 +427,9 @@ export default function WeeklySummaryByDivision({
       {view === "weekly" ? (
         <div style={styles.weeklyContent}>
           {weeklyEventCount === 0 ? (
-            <p style={styles.emptyText}>No survey activity in the past 7 days.</p>
+            <p style={styles.emptyText}>
+              No survey activity in the past 7 days.
+            </p>
           ) : (
             Object.entries(groupedWeeklyItems).map(([division, consultants]) => (
               <div key={division} style={styles.divisionBlock}>
@@ -345,7 +454,8 @@ export default function WeeklySummaryByDivision({
                         <div>
                           <p style={styles.consultantName}>{consultant}</p>
                           <p style={styles.smallMuted}>
-                            {items.length} event{items.length === 1 ? "" : "s"}
+                            {items.length} event
+                            {items.length === 1 ? "" : "s"}
                           </p>
                         </div>
                       </div>
@@ -371,7 +481,8 @@ export default function WeeklySummaryByDivision({
       ) : (
         <div style={styles.standingContent}>
           <div style={styles.standingNote}>
-            Best to worst is based on total deficiency points for current-year survey events that have parsed findings. Lower points are better.
+            Best to worst is based on current-year total deficiency points
+            from parsed findings. Lower points are better.
           </div>
 
           <div style={styles.rankingList}>
@@ -417,7 +528,7 @@ export default function WeeklySummaryByDivision({
                       {consultant.facilities.length === 0 ? (
                         <span>No mapped current-year facility findings yet</span>
                       ) : (
-                        consultant.facilities.slice(0, 4).map((facility) => (
+                        consultant.facilities.slice(0, 5).map((facility) => (
                           <span key={facility.facility}>
                             {facility.facility}: {facility.points} pts
                           </span>
@@ -621,7 +732,8 @@ const styles = {
 
   rankCard: {
     display: "grid",
-    gridTemplateColumns: "minmax(220px, 0.8fr) minmax(260px, 1.3fr) minmax(110px, 0.35fr)",
+    gridTemplateColumns:
+      "minmax(220px, 0.8fr) minmax(260px, 1.3fr) minmax(110px, 0.35fr)",
     gap: "12px",
     alignItems: "center",
     background: "#ffffff",
