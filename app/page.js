@@ -204,12 +204,37 @@ export default function Home() {
     );
   }
 
+  function isJotformSubmissionPdf(file, submissionId) {
+    const name = String(file?.name || "").trim().toLowerCase();
+    const cleanSubmissionId = String(submissionId || "").trim().toLowerCase();
+
+    if (!name || !cleanSubmissionId) return false;
+
+    if (name === `${cleanSubmissionId}.pdf`) return true;
+
+    if (/^\d+\.pdf$/i.test(name)) return true;
+
+    return false;
+  }
+
   function getRelevantDocumentsForSubmission(submissionId) {
     const allDocuments = getAllDocumentsForSubmission(submissionId);
+    const seen = new Set();
 
     return allDocuments.filter((file) => {
       if (!file) return false;
-      return isPdfFile(file);
+      if (!isPdfFile(file)) return false;
+      if (isJotformSubmissionPdf(file, submissionId)) return false;
+
+      const normalizedName = String(file.name || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+
+      if (seen.has(normalizedName)) return false;
+
+      seen.add(normalizedName);
+      return true;
     });
   }
 
