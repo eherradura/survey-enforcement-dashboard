@@ -6,14 +6,14 @@ const CURRENT_YEAR = new Date().getFullYear();
 
 const DIVISIONS = {
   "Erick's Division": [
-    "Erick",
+    "Erick Herradura",
     "Beth Clark",
     "Jinkee Javier",
     "Guillermo Vicencio",
     "Brenda Washington",
   ],
   "Donna's Division": [
-    "Donna",
+    "Donna Kimura",
     "Gerly Orona",
     "Melissa Acuna",
     "Sammy Balisbis",
@@ -21,6 +21,8 @@ const DIVISIONS = {
 };
 
 const CONSULTANT_PHOTOS = {
+  Erick Herradura: "/Erick Herradura.jpg",
+  Donna Kimura: "/Donna Kimura.jpg",
   "Beth Clark": "/Beth Clark.jpg",
   "Brenda Washington": "/Brenda Washington.jpg",
   "Gerly Orona": "/Gerly Orona.jpg",
@@ -28,12 +30,8 @@ const CONSULTANT_PHOTOS = {
   "Jinkee Javier": "/Jinkee Javier.jpg",
   "Melissa Acuna": "/Melissa Acuna.jpg",
   "Sammy Balisbis": "/Sammy Balisbis.jpg",
-  Erick: null,
-  Donna: null,
 };
 
-// Facility-to-consultant assignment map.
-// Use uppercase normalized facility names as keys.
 const FACILITY_CONSULTANT_MAP = {
   // Jinkee
   "COURTYARD CARE CENTER": "Jinkee Javier",
@@ -46,6 +44,7 @@ const FACILITY_CONSULTANT_MAP = {
   "ALCOTT REHABILITATION HOSPITAL": "Jinkee Javier",
   "COLLEGE VISTA POST-ACUTE": "Jinkee Javier",
   "COUNTRY OAKS CARE CENTER": "Jinkee Javier",
+  "COUNTRY OAKS CARE CENTER SUB-ACUTE": "Jinkee Javier",
 
   // Beth
   "POMONA VISTA CARE CENTER": "Beth Clark",
@@ -77,23 +76,31 @@ const FACILITY_CONSULTANT_MAP = {
   "MERCED LAKE POST-ACUTE": "Melissa Acuna",
   "MISSION CARE CENTER": "Melissa Acuna",
   "TALBOUC HILLS POST-ACUTE": "Melissa Acuna",
+  "TALBOUC HILLS POST ACUTE": "Melissa Acuna",
   "VICTORIA CARE CENTER": "Melissa Acuna",
 
   // Gerly
   "EXTENDED CARE HOSPITAL OF RIVERSIDE": "Gerly Orona",
   "GARDEN PARK CARE CENTER": "Gerly Orona",
   "MOUNTAIN VIEW POST-ACUTE": "Gerly Orona",
+  "MOUNTAIN VIEW POST ACUTE": "Gerly Orona",
   "OCEAN VIEW POST-ACUTE": "Gerly Orona",
+  "OCEAN VIEW POST ACUTE": "Gerly Orona",
   "VILLA RANCHO BERNARDO CARE CENTER": "Gerly Orona",
   "VISTA VIEW POST-ACUTE": "Gerly Orona",
+  "VISTA VIEW POST ACUTE": "Gerly Orona",
 
   // Sammy
   "COTTAGE CREST POST-ACUTE": "Sammy Balisbis",
+  "COTTAGE CREST POST ACUTE": "Sammy Balisbis",
   "PARAMOUNT CONVALESCENT HOSPITAL": "Sammy Balisbis",
   "SEAVIEW CARE CENTER": "Sammy Balisbis",
   "SUNNY HILLS POST-ACUTE": "Sammy Balisbis",
+  "SUNNY HILLS POST ACUTE": "Sammy Balisbis",
   "THE GROVE POST-ACUTE": "Sammy Balisbis",
+  "THE GROVE POST ACUTE": "Sammy Balisbis",
   "VILLA DEL SOL POST-ACUTE": "Sammy Balisbis",
+  "VILLA DEL SOL POST ACUTE": "Sammy Balisbis",
   "PARK REGENCY RETIREMENT CENTER": "Sammy Balisbis",
 
   // Erick
@@ -101,6 +108,7 @@ const FACILITY_CONSULTANT_MAP = {
 
   // Donna
   "DEL MAR CONVALESCENT": "Donna",
+  "DEL MAR CONVALESCENT CENTER": "Donna",
 };
 
 const DEFICIENCY_POINTS = {
@@ -123,6 +131,7 @@ function normalizeFacilityName(value) {
     .trim()
     .toUpperCase()
     .replace(/\([^)]*\)/g, "")
+    .replace(/&/g, "AND")
     .replace(/[^A-Z0-9\s-]/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -235,6 +244,71 @@ function calculateSubmissionPoints(parsedFindings) {
   };
 }
 
+function ConsultantPhoto({ consultant, size = 38 }) {
+  const photo = CONSULTANT_PHOTOS[consultant];
+
+  if (photo) {
+    return (
+      <img
+        src={photo}
+        alt={consultant}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "999px",
+          objectFit: "cover",
+          border: "2px solid white",
+          boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
+        }}
+        onError={(event) => {
+          event.currentTarget.style.display = "none";
+          const fallback = event.currentTarget.nextSibling;
+          if (fallback) fallback.style.display = "flex";
+        }}
+      />
+    );
+  }
+
+  return null;
+}
+
+function ConsultantFallback({ consultant, size = 38 }) {
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "999px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#dbeafe",
+        color: "#1e40af",
+        fontWeight: "900",
+      }}
+    >
+      {String(consultant || "?").slice(0, 1)}
+    </div>
+  );
+}
+
+function ConsultantAvatar({ consultant, size = 38 }) {
+  const photo = CONSULTANT_PHOTOS[consultant];
+
+  if (!photo) {
+    return <ConsultantFallback consultant={consultant} size={size} />;
+  }
+
+  return (
+    <div style={{ position: "relative", width: size, height: size }}>
+      <ConsultantPhoto consultant={consultant} size={size} />
+      <div style={{ display: "none" }}>
+        <ConsultantFallback consultant={consultant} size={size} />
+      </div>
+    </div>
+  );
+}
+
 export default function WeeklySummaryByDivision({
   weeklySummaryItems = [],
   submissions = [],
@@ -245,6 +319,45 @@ export default function WeeklySummaryByDivision({
 
   const weeklyEventCount = weeklySummaryItems.length;
 
+  const allConsultantsForWeeklyDisplay = useMemo(() => {
+    const list = [];
+
+    Object.entries(DIVISIONS).forEach(([division, consultants]) => {
+      consultants.forEach((consultant) => {
+        list.push({
+          consultant,
+          division,
+        });
+      });
+    });
+
+    return list;
+  }, []);
+
+  const groupedWeeklyItems = useMemo(() => {
+    const groups = {};
+
+    Object.entries(DIVISIONS).forEach(([division, consultants]) => {
+      if (!groups[division]) groups[division] = {};
+
+      consultants.forEach((consultant) => {
+        groups[division][consultant] = [];
+      });
+    });
+
+    weeklySummaryItems.forEach((item) => {
+      const consultant = getConsultantForFacility(item.facility);
+      const division = getDivisionForConsultant(consultant);
+
+      if (!groups[division]) groups[division] = {};
+      if (!groups[division][consultant]) groups[division][consultant] = [];
+
+      groups[division][consultant].push(item);
+    });
+
+    return groups;
+  }, [weeklySummaryItems]);
+
   const facilityStanding = useMemo(() => {
     const consultantMap = {};
 
@@ -253,7 +366,6 @@ export default function WeeklySummaryByDivision({
         consultantMap[consultant] = {
           consultant,
           division,
-          photo: CONSULTANT_PHOTOS[consultant],
           totalPoints: 0,
           deficiencyCount: 0,
           surveyCount: 0,
@@ -266,7 +378,6 @@ export default function WeeklySummaryByDivision({
     consultantMap.Unassigned = {
       consultant: "Unassigned",
       division: "Unassigned",
-      photo: null,
       totalPoints: 0,
       deficiencyCount: 0,
       surveyCount: 0,
@@ -300,7 +411,6 @@ export default function WeeklySummaryByDivision({
         consultantMap[consultant] = {
           consultant,
           division: getDivisionForConsultant(consultant),
-          photo: CONSULTANT_PHOTOS[consultant] || null,
           totalPoints: 0,
           deficiencyCount: 0,
           surveyCount: 0,
@@ -378,27 +488,6 @@ export default function WeeklySummaryByDivision({
     }));
   }, [submissions, parsedDocs, getAnswer]);
 
-  const groupedWeeklyItems = useMemo(() => {
-    const groups = {};
-
-    weeklySummaryItems.forEach((item) => {
-      const consultant = getConsultantForFacility(item.facility);
-      const division = getDivisionForConsultant(consultant);
-
-      if (!groups[division]) {
-        groups[division] = {};
-      }
-
-      if (!groups[division][consultant]) {
-        groups[division][consultant] = [];
-      }
-
-      groups[division][consultant].push(item);
-    });
-
-    return groups;
-  }, [weeklySummaryItems]);
-
   return (
     <section style={styles.wrapper}>
       <div style={styles.headerRow}>
@@ -426,40 +515,35 @@ export default function WeeklySummaryByDivision({
 
       {view === "weekly" ? (
         <div style={styles.weeklyContent}>
-          {weeklyEventCount === 0 ? (
+          {weeklyEventCount === 0 && (
             <p style={styles.emptyText}>
               No survey activity in the past 7 days.
             </p>
-          ) : (
-            Object.entries(groupedWeeklyItems).map(([division, consultants]) => (
-              <div key={division} style={styles.divisionBlock}>
-                <h3 style={styles.divisionTitle}>{division}</h3>
+          )}
 
-                <div style={styles.consultantGrid}>
-                  {Object.entries(consultants).map(([consultant, items]) => (
-                    <div key={consultant} style={styles.consultantCard}>
-                      <div style={styles.consultantHeader}>
-                        {CONSULTANT_PHOTOS[consultant] ? (
-                          <img
-                            src={CONSULTANT_PHOTOS[consultant]}
-                            alt={consultant}
-                            style={styles.avatar}
-                          />
-                        ) : (
-                          <div style={styles.avatarFallback}>
-                            {consultant.slice(0, 1)}
-                          </div>
-                        )}
+          {Object.entries(groupedWeeklyItems).map(([division, consultants]) => (
+            <div key={division} style={styles.divisionBlock}>
+              <h3 style={styles.divisionTitle}>{division}</h3>
 
-                        <div>
-                          <p style={styles.consultantName}>{consultant}</p>
-                          <p style={styles.smallMuted}>
-                            {items.length} event
-                            {items.length === 1 ? "" : "s"}
-                          </p>
-                        </div>
+              <div style={styles.consultantGrid}>
+                {Object.entries(consultants).map(([consultant, items]) => (
+                  <div key={consultant} style={styles.consultantCard}>
+                    <div style={styles.consultantHeader}>
+                      <ConsultantAvatar consultant={consultant} size={40} />
+
+                      <div>
+                        <p style={styles.consultantName}>{consultant}</p>
+                        <p style={styles.smallMuted}>
+                          {items.length} event{items.length === 1 ? "" : "s"}
+                        </p>
                       </div>
+                    </div>
 
+                    {items.length === 0 ? (
+                      <p style={styles.noConsultantEvents}>
+                        No survey activity this week
+                      </p>
+                    ) : (
                       <div style={styles.eventList}>
                         {items.map((item) => (
                           <div key={item.id} style={styles.weeklyEvent}>
@@ -471,12 +555,51 @@ export default function WeeklySummaryByDivision({
                           </div>
                         ))}
                       </div>
-                    </div>
-                  ))}
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {groupedWeeklyItems.Unassigned &&
+            Object.keys(groupedWeeklyItems.Unassigned).length > 0 && (
+              <div style={styles.divisionBlock}>
+                <h3 style={styles.divisionTitle}>Unassigned</h3>
+
+                <div style={styles.consultantGrid}>
+                  {Object.entries(groupedWeeklyItems.Unassigned).map(
+                    ([consultant, items]) => (
+                      <div key={consultant} style={styles.consultantCard}>
+                        <div style={styles.consultantHeader}>
+                          <ConsultantAvatar consultant={consultant} size={40} />
+
+                          <div>
+                            <p style={styles.consultantName}>{consultant}</p>
+                            <p style={styles.smallMuted}>
+                              {items.length} event
+                              {items.length === 1 ? "" : "s"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div style={styles.eventList}>
+                          {items.map((item) => (
+                            <div key={item.id} style={styles.weeklyEvent}>
+                              <strong>{item.facility}</strong>
+                              <span>
+                                {item.date} — {item.surveyType}
+                              </span>
+                              <em>{item.comments || "No comments entered"}</em>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
-            ))
-          )}
+            )}
         </div>
       ) : (
         <div style={styles.standingContent}>
@@ -496,17 +619,10 @@ export default function WeeklySummaryByDivision({
                   <div style={styles.rankLeft}>
                     <div style={styles.rankNumber}>#{consultant.rank}</div>
 
-                    {consultant.photo ? (
-                      <img
-                        src={consultant.photo}
-                        alt={consultant.consultant}
-                        style={styles.rankAvatar}
-                      />
-                    ) : (
-                      <div style={styles.rankAvatarFallback}>
-                        {consultant.consultant.slice(0, 1)}
-                      </div>
-                    )}
+                    <ConsultantAvatar
+                      consultant={consultant.consultant}
+                      size={46}
+                    />
 
                     <div style={styles.rankNameBlock}>
                       <p style={styles.rankName}>{consultant.consultant}</p>
@@ -661,27 +777,6 @@ const styles = {
     marginBottom: "8px",
   },
 
-  avatar: {
-    width: "38px",
-    height: "38px",
-    borderRadius: "999px",
-    objectFit: "cover",
-    border: "2px solid white",
-    boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
-  },
-
-  avatarFallback: {
-    width: "38px",
-    height: "38px",
-    borderRadius: "999px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#dbeafe",
-    color: "#1e40af",
-    fontWeight: "900",
-  },
-
   consultantName: {
     margin: 0,
     fontWeight: "900",
@@ -693,6 +788,17 @@ const styles = {
     color: "#64748b",
     fontSize: "11px",
     fontWeight: "700",
+  },
+
+  noConsultantEvents: {
+    margin: 0,
+    color: "#94a3b8",
+    fontSize: "11px",
+    fontWeight: "800",
+    background: "white",
+    border: "1px dashed #cbd5e1",
+    borderRadius: "10px",
+    padding: "7px",
   },
 
   eventList: {
@@ -759,27 +865,6 @@ const styles = {
     justifyContent: "center",
     fontWeight: "900",
     color: "#334155",
-  },
-
-  rankAvatar: {
-    width: "44px",
-    height: "44px",
-    borderRadius: "999px",
-    objectFit: "cover",
-    border: "2px solid white",
-    boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
-  },
-
-  rankAvatarFallback: {
-    width: "44px",
-    height: "44px",
-    borderRadius: "999px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#dbeafe",
-    color: "#1e40af",
-    fontWeight: "900",
   },
 
   rankNameBlock: {
