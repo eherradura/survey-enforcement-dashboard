@@ -904,14 +904,16 @@ export default function Home() {
                             </div>
 
                             <div style={styles.buttonRow}>
-                              <a
-                                href={file.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={styles.documentLink}
-                              >
-                                View File
-                              </a>
+                             <a
+  href={`/api/file-view?fileId=${encodeURIComponent(
+    file.fileId
+  )}&fileName=${encodeURIComponent(documentName)}`}
+  target="_blank"
+  rel="noreferrer"
+  style={styles.documentLink}
+>
+  View File
+</a>
 
                               <button
                                 onClick={() =>
