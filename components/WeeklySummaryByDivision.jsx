@@ -20,6 +20,42 @@ const DIVISIONS = {
   ],
 };
 
+const DIVISION_STYLES = {
+  "Erick Herradura's Division": {
+    shellBackground:
+      "linear-gradient(135deg, rgba(239,246,255,0.96), rgba(255,255,255,0.96))",
+    border: "1px solid #bfdbfe",
+    accent: "#2563eb",
+    softAccent: "#dbeafe",
+    text: "#1e3a8a",
+    cardBackground: "#f8fbff",
+    badgeBackground: "#dbeafe",
+    badgeText: "#1e40af",
+  },
+  "Donna Kimura's Division": {
+    shellBackground:
+      "linear-gradient(135deg, rgba(240,253,244,0.96), rgba(255,255,255,0.96))",
+    border: "1px solid #bbf7d0",
+    accent: "#16a34a",
+    softAccent: "#dcfce7",
+    text: "#166534",
+    cardBackground: "#f8fffb",
+    badgeBackground: "#dcfce7",
+    badgeText: "#166534",
+  },
+  Unassigned: {
+    shellBackground:
+      "linear-gradient(135deg, rgba(248,250,252,0.96), rgba(255,255,255,0.96))",
+    border: "1px solid #cbd5e1",
+    accent: "#64748b",
+    softAccent: "#f1f5f9",
+    text: "#334155",
+    cardBackground: "#f8fafc",
+    badgeBackground: "#f1f5f9",
+    badgeText: "#334155",
+  },
+};
+
 const CONSULTANT_PHOTOS = {
   "Erick Herradura": "/consultants/Erick Herradura.jpg",
   "Donna Kimura": "/consultants/Donna Kimura.jpg",
@@ -213,6 +249,10 @@ function getDivisionForConsultant(consultantName) {
   }
 
   return "Unassigned";
+}
+
+function getDivisionStyle(divisionName) {
+  return DIVISION_STYLES[divisionName] || DIVISION_STYLES.Unassigned;
 }
 
 function getSeverityPoints(scopeSeverity) {
@@ -512,7 +552,10 @@ export default function WeeklySummaryByDivision({
         <div style={styles.titleCluster}>
           <div style={styles.titleLine}>
             <p style={styles.kicker}>Weekly Summary</p>
-            <span style={styles.eventBubble}>{weeklyEventCount} events</span>
+            <span style={styles.eventBubble}>{weeklyEventCount}</span>
+            <span style={styles.eventBubbleLabel}>
+              {weeklyEventCount === 1 ? "event" : "events"}
+            </span>
           </div>
 
           <h2 style={styles.title}>
@@ -539,46 +582,89 @@ export default function WeeklySummaryByDivision({
             </p>
           )}
 
-          {Object.entries(groupedWeeklyItems).map(([division, consultants]) => (
-            <div key={division} style={styles.divisionBlock}>
-              <h3 style={styles.divisionTitle}>{division}</h3>
+          {Object.entries(groupedWeeklyItems).map(([division, consultants]) => {
+            const divisionStyle = getDivisionStyle(division);
 
-              <div style={styles.consultantGrid}>
-                {Object.entries(consultants).map(([consultant, items]) => (
-                  <div key={consultant} style={styles.consultantCard}>
-                    <div style={styles.consultantHeader}>
-                      <ConsultantAvatar consultant={consultant} size={42} />
+            return (
+              <div
+                key={division}
+                style={{
+                  ...styles.divisionBlock,
+                  background: divisionStyle.shellBackground,
+                  border: divisionStyle.border,
+                  borderTop: `5px solid ${divisionStyle.accent}`,
+                }}
+              >
+                <div style={styles.divisionHeader}>
+                  <h3
+                    style={{
+                      ...styles.divisionTitle,
+                      color: divisionStyle.text,
+                    }}
+                  >
+                    {division}
+                  </h3>
 
-                      <div>
-                        <p style={styles.consultantName}>{consultant}</p>
-                        <p style={styles.smallMuted}>
-                          {items.length} event{items.length === 1 ? "" : "s"}
+                  <span
+                    style={{
+                      ...styles.divisionBadge,
+                      background: divisionStyle.badgeBackground,
+                      color: divisionStyle.badgeText,
+                    }}
+                  >
+                    {Object.values(consultants).reduce(
+                      (total, items) => total + items.length,
+                      0
+                    )}{" "}
+                    events
+                  </span>
+                </div>
+
+                <div style={styles.consultantGrid}>
+                  {Object.entries(consultants).map(([consultant, items]) => (
+                    <div
+                      key={consultant}
+                      style={{
+                        ...styles.consultantCard,
+                        background: divisionStyle.cardBackground,
+                        borderLeft: `4px solid ${divisionStyle.accent}`,
+                      }}
+                    >
+                      <div style={styles.consultantHeader}>
+                        <ConsultantAvatar consultant={consultant} size={42} />
+
+                        <div>
+                          <p style={styles.consultantName}>{consultant}</p>
+                          <p style={styles.smallMuted}>
+                            {items.length} event
+                            {items.length === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {items.length === 0 ? (
+                        <p style={styles.noConsultantEvents}>
+                          No survey activity this week
                         </p>
-                      </div>
+                      ) : (
+                        <div style={styles.eventList}>
+                          {items.map((item) => (
+                            <div key={item.id} style={styles.weeklyEvent}>
+                              <strong>{item.facility}</strong>
+                              <span>
+                                {item.date} — {item.surveyType}
+                              </span>
+                              <em>{item.comments || "No comments entered"}</em>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-
-                    {items.length === 0 ? (
-                      <p style={styles.noConsultantEvents}>
-                        No survey activity this week
-                      </p>
-                    ) : (
-                      <div style={styles.eventList}>
-                        {items.map((item) => (
-                          <div key={item.id} style={styles.weeklyEvent}>
-                            <strong>{item.facility}</strong>
-                            <span>
-                              {item.date} — {item.surveyType}
-                            </span>
-                            <em>{item.comments || "No comments entered"}</em>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div style={styles.standingContent}>
@@ -593,55 +679,76 @@ export default function WeeklySummaryByDivision({
                 No current-year parsed deficiency data available yet.
               </p>
             ) : (
-              facilityStanding.map((consultant) => (
-                <div key={consultant.consultant} style={styles.rankCard}>
-                  <div style={styles.rankLeft}>
-                    <div style={styles.rankNumber}>#{consultant.rank}</div>
+              facilityStanding.map((consultant) => {
+                const divisionStyle = getDivisionStyle(consultant.division);
 
-                    <ConsultantAvatar
-                      consultant={consultant.consultant}
-                      size={48}
-                    />
-
-                    <div style={styles.rankNameBlock}>
-                      <p style={styles.rankName}>{consultant.consultant}</p>
-                      <p style={styles.rankDivision}>{consultant.division}</p>
-                    </div>
-                  </div>
-
-                  <div style={styles.rankMiddle}>
-                    <div style={styles.barTrack}>
+                return (
+                  <div
+                    key={consultant.consultant}
+                    style={{
+                      ...styles.rankCard,
+                      borderLeft: `5px solid ${divisionStyle.accent}`,
+                    }}
+                  >
+                    <div style={styles.rankLeft}>
                       <div
                         style={{
-                          ...styles.barFill,
-                          width: consultant.barWidth,
+                          ...styles.rankNumber,
+                          background: divisionStyle.softAccent,
+                          color: divisionStyle.text,
                         }}
-                      ></div>
+                      >
+                        #{consultant.rank}
+                      </div>
+
+                      <ConsultantAvatar
+                        consultant={consultant.consultant}
+                        size={48}
+                      />
+
+                      <div style={styles.rankNameBlock}>
+                        <p style={styles.rankName}>{consultant.consultant}</p>
+                        <p style={styles.rankDivision}>{consultant.division}</p>
+                      </div>
                     </div>
 
-                    <div style={styles.facilityMiniList}>
-                      {consultant.facilities.length === 0 ? (
-                        <span>No mapped current-year facility findings yet</span>
-                      ) : (
-                        consultant.facilities.slice(0, 5).map((facility) => (
-                          <span key={facility.facility}>
-                            {facility.facility}: {facility.points} pts
+                    <div style={styles.rankMiddle}>
+                      <div style={styles.barTrack}>
+                        <div
+                          style={{
+                            ...styles.barFill,
+                            width: consultant.barWidth,
+                            background: `linear-gradient(90deg, ${divisionStyle.accent}, ${divisionStyle.softAccent})`,
+                          }}
+                        ></div>
+                      </div>
+
+                      <div style={styles.facilityMiniList}>
+                        {consultant.facilities.length === 0 ? (
+                          <span>
+                            No mapped current-year facility findings yet
                           </span>
-                        ))
-                      )}
+                        ) : (
+                          consultant.facilities.slice(0, 5).map((facility) => (
+                            <span key={facility.facility}>
+                              {facility.facility}: {facility.points} pts
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={styles.rankStats}>
+                      <strong>{consultant.totalPoints}</strong>
+                      <span>points</span>
+                      <strong>{consultant.deficiencyCount}</strong>
+                      <span>deficiencies</span>
+                      <strong>{consultant.surveyCount}</strong>
+                      <span>surveys</span>
                     </div>
                   </div>
-
-                  <div style={styles.rankStats}>
-                    <strong>{consultant.totalPoints}</strong>
-                    <span>points</span>
-                    <strong>{consultant.deficiencyCount}</strong>
-                    <span>deficiencies</span>
-                    <strong>{consultant.surveyCount}</strong>
-                    <span>surveys</span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -655,7 +762,7 @@ const styles = {
     background: "rgba(255,255,255,0.94)",
     border: "1px solid rgba(226,232,240,0.95)",
     borderRadius: "18px",
-    padding: "12px",
+    padding: "14px",
     boxShadow: "0 8px 20px rgba(15, 23, 42, 0.055)",
   },
 
@@ -664,7 +771,7 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: "12px",
-    marginBottom: "10px",
+    marginBottom: "12px",
   },
 
   titleCluster: {
@@ -691,17 +798,30 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "3px 9px",
+    minWidth: "42px",
+    height: "32px",
+    padding: "0 12px",
     borderRadius: "999px",
-    background: "#e0f2fe",
+    background: "linear-gradient(135deg, #2563eb, #38bdf8)",
+    color: "white",
+    fontSize: "18px",
+    lineHeight: 1,
+    fontWeight: "950",
+    boxShadow: "0 6px 14px rgba(37,99,235,0.22)",
+  },
+
+  eventBubbleLabel: {
     color: "#075985",
-    fontSize: "11px",
+    fontSize: "13px",
     fontWeight: "900",
+    background: "#e0f2fe",
+    padding: "7px 10px",
+    borderRadius: "999px",
   },
 
   title: {
-    margin: "2px 0 0",
-    fontSize: "20px",
+    margin: "4px 0 0",
+    fontSize: "22px",
     lineHeight: 1.1,
     letterSpacing: "-0.3px",
   },
@@ -721,32 +841,48 @@ const styles = {
 
   weeklyContent: {
     display: "grid",
-    gap: "10px",
+    gap: "14px",
   },
 
   divisionBlock: {
-    borderTop: "1px solid #e2e8f0",
-    paddingTop: "10px",
+    borderRadius: "16px",
+    padding: "12px",
+    boxShadow: "0 8px 18px rgba(15,23,42,0.045)",
+  },
+
+  divisionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "10px",
+    marginBottom: "10px",
   },
 
   divisionTitle: {
-    margin: "0 0 8px",
-    fontSize: "14px",
-    color: "#334155",
+    margin: 0,
+    fontSize: "15px",
+    fontWeight: "950",
+    letterSpacing: "-0.1px",
+  },
+
+  divisionBadge: {
+    borderRadius: "999px",
+    padding: "5px 10px",
+    fontSize: "11px",
     fontWeight: "900",
+    whiteSpace: "nowrap",
   },
 
   consultantGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-    gap: "8px",
+    gap: "10px",
   },
 
   consultantCard: {
-    background: "#f8fafc",
     border: "1px solid #e2e8f0",
     borderRadius: "14px",
-    padding: "9px",
+    padding: "10px",
   },
 
   consultantHeader: {
@@ -758,7 +894,7 @@ const styles = {
 
   consultantName: {
     margin: 0,
-    fontWeight: "900",
+    fontWeight: "950",
     fontSize: "13px",
   },
 
@@ -838,12 +974,10 @@ const styles = {
     width: "34px",
     height: "34px",
     borderRadius: "10px",
-    background: "#f1f5f9",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontWeight: "900",
-    color: "#334155",
+    fontWeight: "950",
   },
 
   rankNameBlock: {
@@ -852,7 +986,7 @@ const styles = {
 
   rankName: {
     margin: 0,
-    fontWeight: "900",
+    fontWeight: "950",
     fontSize: "14px",
   },
 
@@ -879,7 +1013,6 @@ const styles = {
   barFill: {
     height: "100%",
     borderRadius: "999px",
-    background: "linear-gradient(90deg, #2563eb, #60a5fa)",
   },
 
   facilityMiniList: {
