@@ -1,4 +1,10 @@
 export const runtime = "nodejs";
+export const maxDuration = 60;
+
+async function loadPdfParse() {
+  const pdfParseModule = await import("pdf-parse");
+  return pdfParseModule.default || pdfParseModule;
+}
 
 function normalizeText(text) {
   return (text || "")
@@ -81,94 +87,6 @@ function addDeficiency(deficienciesByFtag, ftag, scopeSeverity) {
   }
 }
 
-function buildDebugFtagSnippets(text) {
-  const normalized = normalizeText(text);
-  const flattened = normalized.replace(/\n/g, " ");
-  const snippets = [];
-
-  const patterns = [
-    /\bF\s*0?\d{3}\b/gi,
-    /\bF[-\s]?\d{3}\b/gi,
-    /\bF\d{3}\b/gi,
-    /\bSS\s*[:=]?\s*[A-L]\b/gi,
-    /\bS\/S\s*[:=]?\s*[A-L]\b/gi,
-    /\bScope\s*\/?\s*Severity\b/gi,
-    /\bTag\s*[:#]?\s*F?\s*0?\d{3}\b/gi,
-    /\bCFR\s*483\b/gi,
-    /\b483\.\d+/gi,
-  ];
-
-  for (const pattern of patterns) {
-    for (const match of flattened.matchAll(pattern)) {
-      const start = Math.max(match.index - 450, 0);
-      const end = Math.min(match.index + 900, flattened.length);
-
-      snippets.push({
-        match: match[0],
-        snippet: flattened.slice(start, end),
-      });
-
-      if (snippets.length >= 60) {
-        return snippets;
-      }
-    }
-  }
-
-  return snippets;
-}
-
-function extractPotentialTagLines(text) {
-  const normalized = normalizeText(text);
-
-  return normalized
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => {
-      return (
-        /\bF\s*0?\d{3}\b/i.test(line) ||
-        /\bF\d{3}\b/i.test(line) ||
-        /\bSS\s*[:=]?\s*[A-L]\b/i.test(line) ||
-        /\bS\/S\s*[:=]?\s*[A-L]\b/i.test(line) ||
-        /\bScope\s*\/?\s*Severity\b/i.test(line) ||
-        /\bTag\b/i.test(line) ||
-        /\bCFR\s*483\b/i.test(line) ||
-        /\b483\.\d+/i.test(line) ||
-        /\bdeficient practice\b/i.test(line)
-      );
-    })
-    .slice(0, 160);
-}
-
-function buildFullTextDebug(text) {
-  const normalized = normalizeText(text);
-  const flattened = normalized.replace(/\n/g, " ");
-
-  const totalLength = flattened.length;
-  const middleStart = Math.max(Math.floor(totalLength / 2) - 4000, 0);
-  const middleEnd = Math.min(Math.floor(totalLength / 2) + 4000, totalLength);
-
-  const statementIndex = flattened.search(/statement of deficiencies/i);
-  const cms2567Index = flattened.search(/cms\s*[-–—]?\s*2567|2567/i);
-  const providerIndex = flattened.search(/provider\/supplier|provider supplier/i);
-  const firstFtagMatch = flattened.match(/\bF\s*0?\d{3}\b/i);
-  const firstCfrMatch = flattened.match(/\b483\.\d+/i);
-  const firstDeficientPracticeIndex = flattened.search(/deficient practice/i);
-
-  return {
-    textLength: totalLength,
-    debugTextStart: flattened.slice(0, 8000),
-    debugTextMiddle: flattened.slice(middleStart, middleEnd),
-    debugTextEnd: flattened.slice(Math.max(totalLength - 8000, 0), totalLength),
-    statementOfDeficienciesIndex: statementIndex >= 0 ? statementIndex : null,
-    cms2567Index: cms2567Index >= 0 ? cms2567Index : null,
-    providerIndex: providerIndex >= 0 ? providerIndex : null,
-    firstFtagLikeMatch: firstFtagMatch ? firstFtagMatch[0] : null,
-    firstCfrLikeMatch: firstCfrMatch ? firstCfrMatch[0] : null,
-    firstDeficientPracticeIndex:
-      firstDeficientPracticeIndex >= 0 ? firstDeficientPracticeIndex : null,
-  };
-}
-
 function extractDeficiencies(text) {
   const normalized = normalizeText(text);
   const flattened = normalized.replace(/\n/g, " ");
@@ -180,6 +98,7 @@ function extractDeficiencies(text) {
     .map((line) => line.trim())
     .filter(Boolean);
 
+  // Pattern 1: F689 ... SS=E / SS E / Scope Severity E nearby
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const ftagMatches = [...line.matchAll(/\bF\s*0?(\d{3})\b/gi)];
@@ -189,7 +108,7 @@ function extractDeficiencies(text) {
 
       if (ftag === "F000") continue;
 
-      const nearbyText = lines.slice(i, i + 24).join(" ");
+      const nearbyText = lines.slice(i, i + 28).join(" ");
 
       const ssMatch =
         nearbyText.match(/\bSS\s*[:=]?\s*([A-L])\b/i) ||
@@ -204,11 +123,12 @@ function extractDeficiencies(text) {
     }
   }
 
+  // Pattern 2: compact same-block patterns
   const compactPatterns = [
-    /\bF\s*0?(\d{3})\b.{0,350}?\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b/gi,
-    /\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b.{0,350}?\bF\s*0?(\d{3})\b/gi,
-    /\bF\s*0?(\d{3})\b.{0,350}?\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/gi,
-    /\bF\s*0?(\d{3})\b.{0,350}?\bSeverity\s*[:=]?\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,500}?\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b/gi,
+    /\b(?:SS|S\/S)\s*[:=]?\s*([A-L])\b.{0,500}?\bF\s*0?(\d{3})\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,500}?\bScope\s*\/?\s*Severity\s*[:=]?\s*([A-L])\b/gi,
+    /\bF\s*0?(\d{3})\b.{0,500}?\bSeverity\s*[:=]?\s*([A-L])\b/gi,
   ];
 
   for (const pattern of compactPatterns) {
@@ -228,6 +148,7 @@ function extractDeficiencies(text) {
     }
   }
 
+  // Pattern 3: F 0689 D or F689 E
   const directFtagSeverityPattern = /\bF\s*0?(\d{3})\s+([A-L])\b/gi;
 
   for (const match of flattened.matchAll(directFtagSeverityPattern)) {
@@ -237,6 +158,7 @@ function extractDeficiencies(text) {
     addDeficiency(deficienciesByFtag, ftag, severity);
   }
 
+  // Pattern 4: F689 - E
   const dashPattern = /\bF\s*0?(\d{3})\s*[-–—]\s*([A-L])\b/gi;
 
   for (const match of flattened.matchAll(dashPattern)) {
@@ -246,8 +168,9 @@ function extractDeficiencies(text) {
     addDeficiency(deficienciesByFtag, ftag, severity);
   }
 
+  // Pattern 5: Tag F689 ... Severity E
   const tagScopePattern =
-    /\bTag\s*[:#]?\s*F?\s*0?(\d{3})\b.{0,700}?\b(?:Scope\s*\/?\s*Severity|Severity)\s*[:=]?\s*([A-L])\b/gi;
+    /\bTag\s*[:#]?\s*F?\s*0?(\d{3})\b.{0,900}?\b(?:Scope\s*\/?\s*Severity|Severity|SS|S\/S)\s*[:=]?\s*([A-L])\b/gi;
 
   for (const match of flattened.matchAll(tagScopePattern)) {
     const ftag = normalizeFtag(match[1]);
@@ -256,10 +179,22 @@ function extractDeficiencies(text) {
     addDeficiency(deficienciesByFtag, ftag, severity);
   }
 
+  // Pattern 6: broad F-tag block with severity later
   const broadBlockPattern =
-    /\bF\s*0?(\d{3})\b(?:(?!\bF\s*0?\d{3}\b).){0,1500}?\b(?:SS|S\/S|Scope\s*\/?\s*Severity|Scope\s+and\s+Severity|Severity)\s*[:=]?\s*([A-L])\b/gi;
+    /\bF\s*0?(\d{3})\b(?:(?!\bF\s*0?\d{3}\b).){0,1800}?\b(?:SS|S\/S|Scope\s*\/?\s*Severity|Scope\s+and\s+Severity|Severity)\s*[:=]?\s*([A-L])\b/gi;
 
   for (const match of flattened.matchAll(broadBlockPattern)) {
+    const ftag = normalizeFtag(match[1]);
+    const severity = match[2];
+
+    addDeficiency(deficienciesByFtag, ftag, severity);
+  }
+
+  // Pattern 7: some 2567 exports read as "F 0689" then "Level E" or "Severity Level E"
+  const levelPattern =
+    /\bF\s*0?(\d{3})\b.{0,900}?\b(?:level|severity level)\s*[:=]?\s*([A-L])\b/gi;
+
+  for (const match of flattened.matchAll(levelPattern)) {
     const ftag = normalizeFtag(match[1]);
     const severity = match[2];
 
@@ -354,15 +289,273 @@ function detectCoverLetterDeficiencyIndication(text) {
     cleanText.match(
       /isolated deficiencies that constitute no actual harm.*?\(([A-L])\)/i
     ) ||
-    cleanText.match(
-      /immediate jeopardy.*?\(([A-L])\)/i
-    );
+    cleanText.match(/immediate jeopardy.*?\(([A-L])\)/i);
 
   return {
     coverLetterIndicatesDeficiencies: mentionsDeficiencies,
     coverLetterHighestSeverity: highestSeverityMatch
       ? highestSeverityMatch[1].toUpperCase()
       : null,
+  };
+}
+
+function buildDebugFtagSnippets(text) {
+  const normalized = normalizeText(text);
+  const flattened = normalized.replace(/\n/g, " ");
+  const snippets = [];
+
+  const patterns = [
+    /\bF\s*0?\d{3}\b/gi,
+    /\bF[-\s]?\d{3}\b/gi,
+    /\bF\d{3}\b/gi,
+    /\bSS\s*[:=]?\s*[A-L]\b/gi,
+    /\bS\/S\s*[:=]?\s*[A-L]\b/gi,
+    /\bScope\s*\/?\s*Severity\b/gi,
+    /\bTag\s*[:#]?\s*F?\s*0?\d{3}\b/gi,
+    /\bCFR\s*483\b/gi,
+    /\b483\.\d+/gi,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of flattened.matchAll(pattern)) {
+      const start = Math.max(match.index - 450, 0);
+      const end = Math.min(match.index + 900, flattened.length);
+
+      snippets.push({
+        match: match[0],
+        snippet: flattened.slice(start, end),
+      });
+
+      if (snippets.length >= 80) {
+        return snippets;
+      }
+    }
+  }
+
+  return snippets;
+}
+
+function extractPotentialTagLines(text) {
+  const normalized = normalizeText(text);
+
+  return normalized
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => {
+      return (
+        /\bF\s*0?\d{3}\b/i.test(line) ||
+        /\bF\d{3}\b/i.test(line) ||
+        /\bSS\s*[:=]?\s*[A-L]\b/i.test(line) ||
+        /\bS\/S\s*[:=]?\s*[A-L]\b/i.test(line) ||
+        /\bScope\s*\/?\s*Severity\b/i.test(line) ||
+        /\bTag\b/i.test(line) ||
+        /\bCFR\s*483\b/i.test(line) ||
+        /\b483\.\d+/i.test(line) ||
+        /\bdeficient practice\b/i.test(line)
+      );
+    })
+    .slice(0, 200);
+}
+
+function buildFullTextDebug(text) {
+  const normalized = normalizeText(text);
+  const flattened = normalized.replace(/\n/g, " ");
+
+  const totalLength = flattened.length;
+  const middleStart = Math.max(Math.floor(totalLength / 2) - 4000, 0);
+  const middleEnd = Math.min(Math.floor(totalLength / 2) + 4000, totalLength);
+
+  const statementIndex = flattened.search(/statement of deficiencies/i);
+  const cms2567Index = flattened.search(/cms\s*[-–—]?\s*2567|2567/i);
+  const providerIndex = flattened.search(/provider\/supplier|provider supplier/i);
+  const firstFtagMatch = flattened.match(/\bF\s*0?\d{3}\b/i);
+  const firstCfrMatch = flattened.match(/\b483\.\d+/i);
+  const firstDeficientPracticeIndex = flattened.search(/deficient practice/i);
+
+  return {
+    textLength: totalLength,
+    debugTextStart: flattened.slice(0, 8000),
+    debugTextMiddle: flattened.slice(middleStart, middleEnd),
+    debugTextEnd: flattened.slice(Math.max(totalLength - 8000, 0), totalLength),
+    statementOfDeficienciesIndex: statementIndex >= 0 ? statementIndex : null,
+    cms2567Index: cms2567Index >= 0 ? cms2567Index : null,
+    providerIndex: providerIndex >= 0 ? providerIndex : null,
+    firstFtagLikeMatch: firstFtagMatch ? firstFtagMatch[0] : null,
+    firstCfrLikeMatch: firstCfrMatch ? firstCfrMatch[0] : null,
+    firstDeficientPracticeIndex:
+      firstDeficientPracticeIndex >= 0 ? firstDeficientPracticeIndex : null,
+  };
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, {
+    cache: "no-store",
+    ...options,
+  });
+
+  const text = await response.text();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {
+      success: false,
+      error: "Could not parse JSON response",
+      rawResponse: text.slice(0, 1000),
+    };
+  }
+}
+
+async function getPdfTextDirectlyFromDrive(driveConnectorUrl, fileId) {
+  const fileData = await fetchJson(
+    `${driveConnectorUrl}?action=file&fileId=${encodeURIComponent(fileId)}`
+  );
+
+  if (!fileData.success) {
+    return {
+      success: false,
+      error: "Could not retrieve PDF file as base64",
+      details: fileData,
+    };
+  }
+
+  if (!fileData.base64) {
+    return {
+      success: false,
+      error: "Apps Script did not return base64 content",
+      details: fileData,
+    };
+  }
+
+  try {
+    const pdfParse = await loadPdfParse();
+    const buffer = Buffer.from(fileData.base64, "base64");
+    const parsed = await pdfParse(buffer);
+
+    return {
+      success: true,
+      source: "Direct PDF text extraction",
+      fileName: fileData.fileName,
+      mimeType: fileData.mimeType,
+      text: parsed.text || "",
+      pageCount: parsed.numpages || null,
+      info: parsed.info || null,
+      metadata: parsed.metadata || null,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: "Direct PDF text extraction failed",
+      details: error.message,
+      fileName: fileData.fileName,
+      mimeType: fileData.mimeType,
+    };
+  }
+}
+
+async function getGoogleOcrText(driveConnectorUrl, fileId) {
+  const ocrData = await fetchJson(
+    `${driveConnectorUrl}?action=ocrText&fileId=${encodeURIComponent(fileId)}`
+  );
+
+  if (!ocrData.success) {
+    return {
+      success: false,
+      error: "Google Drive OCR failed",
+      details: ocrData,
+    };
+  }
+
+  return {
+    success: true,
+    source: "Google Drive OCR",
+    fileName: ocrData.fileName,
+    fileId,
+    text: ocrData.text || "",
+    textLength: ocrData.textLength || 0,
+  };
+}
+
+function chooseBestTextSource(directResult, ocrResult) {
+  const directText = normalizeText(directResult?.text || "");
+  const ocrText = normalizeText(ocrResult?.text || "");
+
+  const directHasFtags = /\bF\s*0?\d{3}\b/i.test(directText);
+  const ocrHasFtags = /\bF\s*0?\d{3}\b/i.test(ocrText);
+
+  const directHasCfr = /\b483\.\d+/i.test(directText);
+  const ocrHasCfr = /\b483\.\d+/i.test(ocrText);
+
+  const directScore =
+    (directText.length || 0) +
+    (directHasFtags ? 100000 : 0) +
+    (directHasCfr ? 20000 : 0);
+
+  const ocrScore =
+    (ocrText.length || 0) +
+    (ocrHasFtags ? 100000 : 0) +
+    (ocrHasCfr ? 20000 : 0);
+
+  if (directResult?.success && directText.length > 200 && directScore >= ocrScore) {
+    return {
+      source: directResult.source,
+      fileName: directResult.fileName,
+      text: directText,
+      directTextLength: directText.length,
+      ocrTextLength: ocrText.length,
+      directHasFtags,
+      ocrHasFtags,
+      directHasCfr,
+      ocrHasCfr,
+      directPageCount: directResult.pageCount || null,
+      selectionReason: "Direct PDF text scored higher or equal",
+    };
+  }
+
+  if (ocrResult?.success && ocrText.length > 0) {
+    return {
+      source: ocrResult.source,
+      fileName: ocrResult.fileName,
+      text: ocrText,
+      directTextLength: directText.length,
+      ocrTextLength: ocrText.length,
+      directHasFtags,
+      ocrHasFtags,
+      directHasCfr,
+      ocrHasCfr,
+      directPageCount: directResult?.pageCount || null,
+      selectionReason: "Google OCR scored higher or direct text unavailable",
+    };
+  }
+
+  if (directResult?.success) {
+    return {
+      source: directResult.source,
+      fileName: directResult.fileName,
+      text: directText,
+      directTextLength: directText.length,
+      ocrTextLength: ocrText.length,
+      directHasFtags,
+      ocrHasFtags,
+      directHasCfr,
+      ocrHasCfr,
+      directPageCount: directResult.pageCount || null,
+      selectionReason: "Fallback to direct text despite low confidence",
+    };
+  }
+
+  return {
+    source: "No text source",
+    fileName: "",
+    text: "",
+    directTextLength: directText.length,
+    ocrTextLength: ocrText.length,
+    directHasFtags,
+    ocrHasFtags,
+    directHasCfr,
+    ocrHasCfr,
+    directPageCount: directResult?.pageCount || null,
+    selectionReason: "No usable text source found",
   };
 }
 
@@ -428,24 +621,48 @@ export async function POST(request) {
       });
     }
 
-    const ocrResponse = await fetch(
-      `${driveConnectorUrl}?action=ocrText&fileId=${encodeURIComponent(fileId)}`,
-      { cache: "no-store" }
+    const directResult = await getPdfTextDirectlyFromDrive(
+      driveConnectorUrl,
+      fileId
     );
 
-    const ocrData = await ocrResponse.json();
+    let ocrResult = null;
 
-    if (!ocrData.success) {
+    const directText = normalizeText(directResult?.text || "");
+    const directLooksUseful =
+      directResult?.success &&
+      directText.length > 200 &&
+      (/\bF\s*0?\d{3}\b/i.test(directText) || /\b483\.\d+/i.test(directText));
+
+    if (!directLooksUseful) {
+      ocrResult = await getGoogleOcrText(driveConnectorUrl, fileId);
+    } else {
+      ocrResult = {
+        success: false,
+        source: "Google OCR skipped",
+        text: "",
+        textLength: 0,
+        reason: "Direct PDF text looked useful",
+      };
+    }
+
+    const selectedTextSource = chooseBestTextSource(directResult, ocrResult);
+    const text = normalizeText(selectedTextSource.text || "");
+
+    if (!text) {
       return Response.json({
         success: false,
-        error: "Google Drive OCR failed",
-        ocrData,
+        error: "No usable text extracted from PDF",
+        directResult,
+        ocrResult,
       });
     }
 
-    const text = normalizeText(ocrData.text || "");
     const deficiencies = extractDeficiencies(text);
-    const intakeNumberFromPdf = extractIntakeNumber(ocrData.fileName, text);
+    const intakeNumberFromPdf = extractIntakeNumber(
+      selectedTextSource.fileName,
+      text
+    );
     const dates = extractSurveyDates(text);
     const severitySummary = buildSeveritySummary(deficiencies);
     const coverLetterSignal = detectCoverLetterDeficiencyIndication(text);
@@ -456,7 +673,7 @@ export async function POST(request) {
 
     const parsedResult = {
       success: true,
-      fileName: ocrData.fileName,
+      fileName: selectedTextSource.fileName || directResult.fileName || "",
       fileId,
       submissionId: submissionId || "",
       facility: facility || "",
@@ -476,8 +693,32 @@ export async function POST(request) {
       surveyStartDate: dates.surveyStartDate,
       surveyEndDate: dates.surveyEndDate,
       textLength: text.length,
-      ocrSource: "Google Drive OCR",
+      textSource: selectedTextSource.source,
+      ocrSource: selectedTextSource.source,
       savedAt: new Date().toISOString(),
+
+      extractionDebug: {
+        selectedTextSource,
+        directResultSummary: {
+          success: directResult?.success || false,
+          error: directResult?.error || null,
+          details: directResult?.details || null,
+          source: directResult?.source || null,
+          textLength: normalizeText(directResult?.text || "").length,
+          pageCount: directResult?.pageCount || null,
+          fileName: directResult?.fileName || null,
+          mimeType: directResult?.mimeType || null,
+        },
+        ocrResultSummary: {
+          success: ocrResult?.success || false,
+          error: ocrResult?.error || null,
+          details: ocrResult?.details || null,
+          source: ocrResult?.source || null,
+          textLength: normalizeText(ocrResult?.text || "").length,
+          fileName: ocrResult?.fileName || null,
+          reason: ocrResult?.reason || null,
+        },
+      },
 
       debug: {
         ...fullTextDebug,
@@ -490,7 +731,7 @@ export async function POST(request) {
       driveConnectorUrl,
       submissionId: submissionId || "",
       fileId,
-      fileName: ocrData.fileName || "",
+      fileName: parsedResult.fileName || "",
       facility: facility || "",
       surveyType: surveyType || "",
       intakeNumberFromPdf,
