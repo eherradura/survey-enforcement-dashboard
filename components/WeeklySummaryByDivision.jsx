@@ -360,13 +360,28 @@ function calculateSubmissionPoints(parsedFindings) {
   let totalPoints = 0;
   let deficiencyCount = 0;
 
+  const countedDeficiencies = new Set();
+
   parsedFindings.forEach((parsed) => {
     const deficiencies = normalizeDeficiencyList(parsed);
 
     deficiencies.forEach((deficiency) => {
+      const ftag = String(deficiency.ftag || "")
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, "");
+
       const severity = String(deficiency.scopeSeverity || "")
         .trim()
         .toUpperCase();
+
+      if (!ftag) return;
+
+      const deficiencyKey = `${ftag}-${severity || "UNKNOWN"}`;
+
+      if (countedDeficiencies.has(deficiencyKey)) return;
+
+      countedDeficiencies.add(deficiencyKey);
 
       const points = getSeverityPoints(severity);
 
