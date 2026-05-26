@@ -39,30 +39,44 @@ export default function Home() {
     async function loadData() {
       const jotformRes = await fetch("/api/jotform");
       const jotformData = await jotformRes.json();
-      setSubmissions(jotformData.content || []);
+
+      const activeSubmissions = jotformData.content || [];
+      setSubmissions(activeSubmissions);
 
       const driveRes = await fetch("/api/drive-files");
       const driveJson = await driveRes.json();
       setDriveData(driveJson.submissions || []);
 
-      await loadSavedAnalysis();
+      await loadSavedAnalysis(activeSubmissions);
     }
 
     loadData();
   }, []);
 
-  async function loadSavedAnalysis() {
+  async function loadSavedAnalysis(activeSubmissionsOverride = null) {
     const analysisRes = await fetch("/api/saved-analysis");
     const analysisJson = await analysisRes.json();
 
+    const activeSubmissionIds = new Set(
+      (activeSubmissionsOverride || submissions).map((submission) =>
+        String(submission.id)
+      )
+    );
+
     if (analysisJson.success && Array.isArray(analysisJson.analysis)) {
       const savedParsedDocs = {};
+      let activeSavedAnalysisCount = 0;
 
       analysisJson.analysis.forEach((record) => {
         const submissionId = String(record.submissionId || "");
         const fileId = String(record.fileId || "");
 
         if (!submissionId || !fileId) return;
+
+        // Important: do not load saved findings for deleted Jotform submissions.
+        if (!activeSubmissionIds.has(submissionId)) return;
+
+        activeSavedAnalysisCount += 1;
 
         const key = `${submissionId}-${fileId}`;
 
@@ -113,7 +127,7 @@ export default function Home() {
       });
 
       setParsedDocs(savedParsedDocs);
-      setSavedAnalysisCount(analysisJson.count || 0);
+      setSavedAnalysisCount(activeSavedAnalysisCount);
     }
   }
 
@@ -501,7 +515,7 @@ export default function Home() {
         [key]: data,
       }));
 
-      await loadSavedAnalysis();
+      await loadSavedAnalysis(submissions);
     } catch (error) {
       setParsedDocs((prev) => ({
         ...prev,
@@ -808,7 +822,7 @@ export default function Home() {
                 </div>
 
                 <p style={styles.savedAnalysisNote}>
-                  Saved analyses: {savedAnalysisCount}
+                  Saved analyses for active submissions: {savedAnalysisCount}
                 </p>
               </div>
             </div>
