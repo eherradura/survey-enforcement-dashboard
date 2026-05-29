@@ -26,6 +26,7 @@ export default function Home() {
 
   const [submissions, setSubmissions] = useState([]);
   const [driveData, setDriveData] = useState([]);
+  const [significantEvents, setSignificantEvents] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState("All Facilities");
   const [selectedYear, setSelectedYear] = useState("All Years");
   const [selectedSurveyTypes, setSelectedSurveyTypes] = useState([]);
@@ -37,15 +38,31 @@ export default function Home() {
     document.title = "Survey Dashboard";
 
     async function loadData() {
-      const jotformRes = await fetch("/api/jotform");
+      const jotformRes = await fetch("/api/jotform", {
+        cache: "no-store",
+      });
       const jotformData = await jotformRes.json();
 
       const activeSubmissions = jotformData.content || [];
       setSubmissions(activeSubmissions);
 
-      const driveRes = await fetch("/api/drive-files");
+      const driveRes = await fetch("/api/drive-files", {
+        cache: "no-store",
+      });
       const driveJson = await driveRes.json();
       setDriveData(driveJson.submissions || []);
+
+      const rncCommentsRes = await fetch("/api/rnc-comments", {
+        cache: "no-store",
+      });
+      const rncCommentsJson = await rncCommentsRes.json();
+
+      if (rncCommentsJson.success) {
+        setSignificantEvents(rncCommentsJson.significantEvents || []);
+      } else {
+        setSignificantEvents([]);
+        console.warn("Unable to load RNC significant events:", rncCommentsJson);
+      }
 
       await loadSavedAnalysis(activeSubmissions);
     }
@@ -54,7 +71,9 @@ export default function Home() {
   }, []);
 
   async function loadSavedAnalysis(activeSubmissionsOverride = null) {
-    const analysisRes = await fetch("/api/saved-analysis");
+    const analysisRes = await fetch("/api/saved-analysis", {
+      cache: "no-store",
+    });
     const analysisJson = await analysisRes.json();
 
     const activeSubmissionIds = new Set(
@@ -573,12 +592,29 @@ export default function Home() {
 
   const severitySummary = filteredSubmissions.reduce((summary, submission) => {
     const parsedFindings = getParsedFindingsForSubmission(submission.id);
+    const countedDeficienciesForSubmission = new Set();
 
     parsedFindings.forEach((parsed) => {
       if (parsed.noDeficiencyLetter) return;
 
       (parsed.deficiencies || []).forEach((deficiency) => {
-        const severity = deficiency.scopeSeverity || "Unknown";
+        const ftag = String(deficiency.ftag || "")
+          .trim()
+          .toUpperCase()
+          .replace(/\s+/g, "");
+
+        const severity = String(deficiency.scopeSeverity || "Unknown")
+          .trim()
+          .toUpperCase();
+
+        if (!ftag) return;
+
+        const deficiencyKey = `${submission.id}-${ftag}-${severity}`;
+
+        if (countedDeficienciesForSubmission.has(deficiencyKey)) return;
+
+        countedDeficienciesForSubmission.add(deficiencyKey);
+
         summary[severity] = (summary[severity] || 0) + 1;
       });
 
@@ -587,6 +623,11 @@ export default function Home() {
         parsed.coverLetterHighestSeverity
       ) {
         const severity = parsed.coverLetterHighestSeverity;
+        const deficiencyKey = `${submission.id}-COVERLETTER-${severity}`;
+
+        if (countedDeficienciesForSubmission.has(deficiencyKey)) return;
+
+        countedDeficienciesForSubmission.add(deficiencyKey);
         summary[severity] = (summary[severity] || 0) + 1;
       }
     });
@@ -676,6 +717,56 @@ export default function Home() {
       });
   }, [submissions, selectedFacility, selectedSurveyTypes, weeklyDateRange]);
 
+  const weeklySignificantEvents = useMemo(() => {
+    const nonReportableValues = new Set([
+      "",
+      "none",
+      "n/a",
+      "na",
+      "n.a.",
+      "no",
+      "no reportable event",
+      "no reportable events",
+      "nothing",
+      "nil",
+    ]);
+
+    return significantEvents
+      .filter((item) => {
+        const withinSelectedDateRange = isDateWithinSelectedRange(
+          item.submissionDate,
+          weeklyDateRange.start,
+          weeklyDateRange.end
+        );
+
+        const normalizedComment = String(item.comment || "")
+          .trim()
+          .toLowerCase();
+
+        const hasRealComment = !nonReportableValues.has(normalizedComment);
+
+        return withinSelectedDateRange && hasRealComment;
+      })
+      .map((item) => ({
+        id: item.submissionId,
+        facility: item.facilityName || "No facility entered",
+        date: formatDisplayDate(item.submissionDate),
+        rawDate: item.submissionDate,
+        rnc: item.rnc || "",
+        comment: item.comment || "",
+      }))
+      .sort((a, b) => {
+        const dateA = parseFacilityDate(a.rawDate);
+        const dateB = parseFacilityDate(b.rawDate);
+
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+
+        return dateB - dateA;
+      });
+  }, [significantEvents, weeklyDateRange]);
+
   return (
     <main style={styles.page}>
       <div style={styles.backgroundAccentOne}></div>
@@ -689,6 +780,7 @@ export default function Home() {
       <section style={styles.weeklySummaryUnderBanner}>
         <WeeklySummaryByDivision
           weeklySummaryItems={weeklySummaryItems}
+          weeklySignificantEvents={weeklySignificantEvents}
           submissions={submissions}
           parsedDocs={parsedDocs}
           getAnswer={getAnswer}
