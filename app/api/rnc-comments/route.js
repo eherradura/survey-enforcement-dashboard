@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const JOTFORM_API_BASE = "https://hipaa-api.jotform.com";
 const FORM_ID = "241300815293045";
 
 const FIELD_LABELS = {
@@ -85,7 +86,7 @@ export async function GET() {
       );
     }
 
-    const questionsUrl = `https://api.jotform.com/form/${FORM_ID}/questions`;
+    const questionsUrl = `${JOTFORM_API_BASE}/form/${FORM_ID}/questions`;
     const questionsData = await fetchJotformJson(questionsUrl);
 
     if (questionsData.responseCode !== 200) {
@@ -138,7 +139,7 @@ export async function GET() {
       );
     }
 
-    const submissionsUrl = `https://api.jotform.com/form/${FORM_ID}/submissions?limit=1000&orderby=created_at`;
+    const submissionsUrl = `${JOTFORM_API_BASE}/form/${FORM_ID}/submissions?limit=1000&orderby=created_at`;
     const submissionsData = await fetchJotformJson(submissionsUrl);
 
     if (submissionsData.responseCode !== 200) {
@@ -189,6 +190,7 @@ export async function GET() {
     return Response.json({
       success: true,
       formId: FORM_ID,
+      apiBase: JOTFORM_API_BASE,
       pulledFieldsOnly: FIELD_LABELS,
       fieldIds,
       count: significantEvents.length,
