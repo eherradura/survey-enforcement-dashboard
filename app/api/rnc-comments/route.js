@@ -4,22 +4,17 @@ export const dynamic = "force-dynamic";
 const JOTFORM_API_BASE = "https://hipaa-api.jotform.com";
 const FORM_ID = "241300815293045";
 
-const FIELD_LABELS = {
-  submissionDate: "Submission Date",
-  facilityName: "Facility Name:",
-  rnc: "RNC:",
-  significantEventComment:
-    "Resource Nurse Consultant Comments - Reportable / Significant Event",
+// Hard-coded allowlist. These are the ONLY Jotform fields this route will return.
+// 3  = Facility Name:
+// 4  = Date
+// 32 = RNC:
+// 39 = Resource Nurse Consultant Comments - Reportable / Significant Event
+const SAFE_FIELD_IDS = {
+  facilityName: "3",
+  date: "4",
+  rnc: "32",
+  significantEventComment: "39",
 };
-
-function normalizeLabel(value) {
-  return String(value || "")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
 
 function normalizeAnswer(answer) {
   if (!answer) return "";
@@ -36,6 +31,30 @@ function normalizeAnswer(answer) {
   }
 
   return "";
+}
+
+function normalizeDateAnswer(answer, fallbackDate = "") {
+  if (!answer) return fallbackDate || "";
+
+  if (answer.prettyFormat) return answer.prettyFormat;
+
+  if (typeof answer.answer === "string") return answer.answer;
+
+  if (answer.answer && typeof answer.answer === "object") {
+    const values = answer.answer;
+
+    const month = values.month || values.mm || "";
+    const day = values.day || values.dd || "";
+    const year = values.year || values.yyyy || "";
+
+    if (month && day && year) {
+      return `${month}-${day}-${year}`;
+    }
+
+    return Object.values(values).filter(Boolean).join("-");
+  }
+
+  return fallbackDate || "";
 }
 
 async function fetchJotformJson(url) {
@@ -59,19 +78,6 @@ async function fetchJotformJson(url) {
   }
 }
 
-function findQuestionIdByLabel(questions, targetLabel) {
-  const normalizedTarget = normalizeLabel(targetLabel);
-
-  const match = Object.entries(questions || {}).find(([, question]) => {
-    const questionText = normalizeLabel(question.text);
-    const questionName = normalizeLabel(question.name);
-
-    return questionText === normalizedTarget || questionName === normalizedTarget;
-  });
-
-  return match ? match[0] : null;
-}
-
 export async function GET() {
   try {
     const apiKey = process.env.JOTFORM_API_KEY;
@@ -83,59 +89,6 @@ export async function GET() {
           error: "Missing JOTFORM_API_KEY environment variable.",
         },
         { status: 500 }
-      );
-    }
-
-    const questionsUrl = `${JOTFORM_API_BASE}/form/${FORM_ID}/questions`;
-    const questionsData = await fetchJotformJson(questionsUrl);
-
-    if (questionsData.responseCode !== 200) {
-      return Response.json(
-        {
-          success: false,
-          error: "Unable to retrieve Jotform questions.",
-          details: questionsData,
-        },
-        { status: 502 }
-      );
-    }
-
-    const questions = questionsData.content || {};
-
-    const fieldIds = {
-      submissionDate: findQuestionIdByLabel(
-        questions,
-        FIELD_LABELS.submissionDate
-      ),
-      facilityName: findQuestionIdByLabel(questions, FIELD_LABELS.facilityName),
-      rnc: findQuestionIdByLabel(questions, FIELD_LABELS.rnc),
-      significantEventComment: findQuestionIdByLabel(
-        questions,
-        FIELD_LABELS.significantEventComment
-      ),
-    };
-
-    const missingFields = Object.entries(fieldIds)
-      .filter(([, id]) => !id)
-      .map(([key]) => ({
-        key,
-        expectedLabel: FIELD_LABELS[key],
-      }));
-
-    if (missingFields.length > 0) {
-      return Response.json(
-        {
-          success: false,
-          error: "One or more required safe fields were not found.",
-          missingFields,
-          availableQuestions: Object.entries(questions).map(([id, q]) => ({
-            id,
-            name: q.name || "",
-            text: q.text || "",
-            type: q.type || "",
-          })),
-        },
-        { status: 404 }
       );
     }
 
@@ -159,15 +112,19 @@ export async function GET() {
       .map((submission) => {
         const answers = submission.answers || {};
 
-        const submissionDate =
-          normalizeAnswer(answers[fieldIds.submissionDate]) ||
-          submission.created_at ||
-          "";
+        const facilityName = normalizeAnswer(
+          answers[SAFE_FIELD_IDS.facilityName]
+        );
 
-        const facilityName = normalizeAnswer(answers[fieldIds.facilityName]);
-        const rnc = normalizeAnswer(answers[fieldIds.rnc]);
+        const submissionDate = normalizeDateAnswer(
+          answers[SAFE_FIELD_IDS.date],
+          submission.created_at || ""
+        );
+
+        const rnc = normalizeAnswer(answers[SAFE_FIELD_IDS.rnc]);
+
         const comment = normalizeAnswer(
-          answers[fieldIds.significantEventComment]
+          answers[SAFE_FIELD_IDS.significantEventComment]
         );
 
         return {
@@ -191,8 +148,14 @@ export async function GET() {
       success: true,
       formId: FORM_ID,
       apiBase: JOTFORM_API_BASE,
-      pulledFieldsOnly: FIELD_LABELS,
-      fieldIds,
+      pulledFieldsOnly: {
+        facilityName: "Facility Name:",
+        date: "Date",
+        rnc: "RNC:",
+        significantEventComment:
+          "Resource Nurse Consultant Comments - Reportable / Significant Event",
+      },
+      fieldIds: SAFE_FIELD_IDS,
       count: significantEvents.length,
       significantEvents,
     });
