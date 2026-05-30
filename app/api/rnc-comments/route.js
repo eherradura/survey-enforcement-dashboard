@@ -216,17 +216,17 @@ export async function GET() {
           createdAt: submission.created_at || null,
           updatedAt: submission.updated_at || null,
 
-          // IMPORTANT:
-          // This remains the Jotform Date field and is used for weekly filtering.
-          // This prevents Menifee from disappearing from the 05/27 weekly period.
+          // Backup/fallback date from the Jotform Date field.
           submissionDate: formDate || submission.created_at || "",
 
-          // IMPORTANT:
-          // This is the actual event date found inside the significant event comment.
-          // This should display on the upper-right of the event card when available.
-          displayDate: firstEventDateFromComment || formDate || submission.created_at || "",
+          // Primary date used by the dashboard for Significant Events.
+          // This comes from the date written inside the comment cell.
+          displayDate:
+            firstEventDateFromComment ||
+            formDate ||
+            submission.created_at ||
+            "",
 
-          // Helpful for troubleshooting.
           eventDateFromComment: firstEventDateFromComment,
           eventDatesFromComment,
           formDate,
@@ -253,7 +253,7 @@ export async function GET() {
       },
       fieldIds: SAFE_FIELD_IDS,
       dateLogic:
-        "submissionDate uses the Jotform Date field for filtering. displayDate uses the first date found in the significant event comment when available.",
+        "Significant Events use displayDate from the first date found in the comment cell. Jotform Date is only fallback.",
       count: significantEvents.length,
       significantEvents,
     });
