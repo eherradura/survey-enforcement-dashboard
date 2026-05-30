@@ -33,7 +33,6 @@ function normalizeAnswer(answer) {
   if (!answer) return "";
 
   if (typeof answer.answer === "string") return answer.answer;
-
   if (typeof answer.prettyFormat === "string") return answer.prettyFormat;
 
   if (Array.isArray(answer.answer)) {
@@ -109,28 +108,67 @@ function normalizeTwoDigitYear(yearText) {
   return year;
 }
 
+function getYearFromDateText(dateText) {
+  const text = String(dateText || "");
+
+  const fourDigitYear = text.match(/\b(20\d{2}|19\d{2})\b/);
+  if (fourDigitYear) return fourDigitYear[1];
+
+  const twoDigitYear = text.match(/\b\d{1,2}[/-]\d{1,2}[/-](\d{2})\b/);
+  if (twoDigitYear) return normalizeTwoDigitYear(twoDigitYear[1]);
+
+  return String(new Date().getFullYear());
+}
+
 function padDatePart(value) {
   return String(value || "").padStart(2, "0");
 }
 
-function extractDatesFromComment(comment) {
+function extractDatesFromComment(comment, fallbackDate = "") {
   const text = String(comment || "").trim();
 
   if (!text) return [];
 
+  const fallbackYear = getYearFromDateText(fallbackDate);
+
+  // Supports:
+  // 5/27
+  // 05/27
+  // 5/27/26
+  // 05/27/2026
+  // 5-27
+  // 5-27-26
   const matches = Array.from(
-    text.matchAll(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/g)
+    text.matchAll(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/g)
   );
 
   const dates = matches.map((match) => {
     const month = padDatePart(match[1]);
     const day = padDatePart(match[2]);
-    const year = normalizeTwoDigitYear(match[3]);
+    const year = match[3]
+      ? normalizeTwoDigitYear(match[3])
+      : fallbackYear;
 
     return `${month}/${day}/${year}`;
   });
 
   return Array.from(new Set(dates));
+}
+
+function removeLeadingDateFromComment(comment) {
+  const text = String(comment || "").trim();
+
+  if (!text) return "";
+
+  // Removes leading dates such as:
+  // 5/27
+  // 5/27/26
+  // 05/27/2026
+  // 5-27
+  // 5-27-26
+  return text
+    .replace(/^\s*\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\s*[-–—:]?\s*/i, "")
+    .trim();
 }
 
 function isRealSignificantEventComment(comment) {
@@ -208,19 +246,24 @@ export async function GET() {
           answers[SAFE_FIELD_IDS.significantEventComment]
         );
 
-        const eventDatesFromComment = extractDatesFromComment(comment);
+        const eventDatesFromComment = extractDatesFromComment(
+          comment,
+          formDate || submission.created_at || ""
+        );
+
         const firstEventDateFromComment = eventDatesFromComment[0] || "";
+
+        const displayComment = removeLeadingDateFromComment(comment);
 
         return {
           submissionId: submission.id,
           createdAt: submission.created_at || null,
           updatedAt: submission.updated_at || null,
 
-          // Backup/fallback date from the Jotform Date field.
+          // Fallback date from the Jotform Date field.
           submissionDate: formDate || submission.created_at || "",
 
           // Primary date used by the dashboard for Significant Events.
-          // This comes from the date written inside the comment cell.
           displayDate:
             firstEventDateFromComment ||
             formDate ||
@@ -233,7 +276,12 @@ export async function GET() {
 
           facilityName,
           rnc,
+
+          // Original full cell value.
           comment,
+
+          // Cleaned text shown on dashboard.
+          displayComment,
         };
       })
       .filter((item) => {
@@ -253,7 +301,7 @@ export async function GET() {
       },
       fieldIds: SAFE_FIELD_IDS,
       dateLogic:
-        "Significant Events use displayDate from the first date found in the comment cell. Jotform Date is only fallback.",
+        "Significant Events use the first date found in the comment cell, including dates without a year. The leading date is removed from the displayed comment.",
       count: significantEvents.length,
       significantEvents,
     });
