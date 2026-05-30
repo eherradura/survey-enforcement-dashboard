@@ -16,10 +16,24 @@ const SAFE_FIELD_IDS = {
   significantEventComment: "39",
 };
 
+const NON_REPORTABLE_VALUES = new Set([
+  "",
+  "none",
+  "n/a",
+  "na",
+  "n.a.",
+  "no",
+  "no reportable event",
+  "no reportable events",
+  "nothing",
+  "nil",
+]);
+
 function normalizeAnswer(answer) {
   if (!answer) return "";
 
   if (typeof answer.answer === "string") return answer.answer;
+
   if (typeof answer.prettyFormat === "string") return answer.prettyFormat;
 
   if (Array.isArray(answer.answer)) {
@@ -36,25 +50,63 @@ function normalizeAnswer(answer) {
 function normalizeDateAnswer(answer, fallbackDate = "") {
   if (!answer) return fallbackDate || "";
 
-  if (answer.prettyFormat) return answer.prettyFormat;
+  // Primary source: the actual Date field inside the Jotform form.
+  // Jotform Date field commonly returns prettyFormat like 05/27/2026.
+  if (typeof answer.prettyFormat === "string" && answer.prettyFormat.trim()) {
+    return answer.prettyFormat.trim();
+  }
 
-  if (typeof answer.answer === "string") return answer.answer;
+  // Sometimes Jotform returns the date as a direct string.
+  if (typeof answer.answer === "string" && answer.answer.trim()) {
+    return answer.answer.trim();
+  }
 
+  // Sometimes Jotform returns the date as an object.
   if (answer.answer && typeof answer.answer === "object") {
     const values = answer.answer;
 
-    const month = values.month || values.mm || "";
-    const day = values.day || values.dd || "";
-    const year = values.year || values.yyyy || "";
+    const month =
+      values.month ||
+      values.mm ||
+      values.Month ||
+      values.MONTH ||
+      "";
+
+    const day =
+      values.day ||
+      values.dd ||
+      values.Day ||
+      values.DAY ||
+      "";
+
+    const year =
+      values.year ||
+      values.yyyy ||
+      values.Year ||
+      values.YEAR ||
+      "";
 
     if (month && day && year) {
-      return `${month}-${day}-${year}`;
+      return `${month}/${day}/${year}`;
     }
 
-    return Object.values(values).filter(Boolean).join("-");
+    // Backup only if Jotform changes the date object structure.
+    const objectDateText = Object.values(values)
+      .filter(Boolean)
+      .join("/");
+
+    if (objectDateText) {
+      return objectDateText;
+    }
   }
 
+  // Only use the form completion date if the actual Date field is blank.
   return fallbackDate || "";
+}
+
+function isRealSignificantEventComment(comment) {
+  const normalized = String(comment || "").trim().toLowerCase();
+  return !NON_REPORTABLE_VALUES.has(normalized);
 }
 
 async function fetchJotformJson(url) {
@@ -116,6 +168,9 @@ export async function GET() {
           answers[SAFE_FIELD_IDS.facilityName]
         );
 
+        // IMPORTANT:
+        // This uses the actual Date cell from the form first.
+        // It only falls back to createdAt if the Date field is blank.
         const submissionDate = normalizeDateAnswer(
           answers[SAFE_FIELD_IDS.date],
           submission.created_at || ""
@@ -138,10 +193,7 @@ export async function GET() {
         };
       })
       .filter((item) => {
-        return (
-          String(item.comment || "").trim() !== "" ||
-          String(item.facilityName || "").trim() !== ""
-        );
+        return isRealSignificantEventComment(item.comment);
       });
 
     return Response.json({
