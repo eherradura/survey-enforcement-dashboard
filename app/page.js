@@ -92,7 +92,6 @@ export default function Home() {
 
         if (!submissionId || !fileId) return;
 
-        // Important: do not load saved findings for deleted Jotform submissions.
         if (!activeSubmissionIds.has(submissionId)) return;
 
         activeSavedAnalysisCount += 1;
@@ -176,6 +175,25 @@ export default function Home() {
     if (!value || value === "No information available") return null;
 
     const text = String(value).trim();
+
+    const yyyymmdd = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (yyyymmdd) {
+      const year = Number(yyyymmdd[1]);
+      const month = Number(yyyymmdd[2]) - 1;
+      const day = Number(yyyymmdd[3]);
+      return new Date(year, month, day);
+    }
+
+    const timestampMatch = text.match(
+      /^(\d{4})-(\d{1,2})-(\d{1,2})\s+\d{1,2}:\d{2}/
+    );
+
+    if (timestampMatch) {
+      const year = Number(timestampMatch[1]);
+      const month = Number(timestampMatch[2]) - 1;
+      const day = Number(timestampMatch[3]);
+      return new Date(year, month, day);
+    }
 
     const mmddyyyy =
       text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/) ||
@@ -561,7 +579,10 @@ export default function Home() {
       .map((submission) => getYearFromSubmission(submission))
       .filter(Boolean);
 
-    return ["All Years", ...Array.from(new Set(extractedYears)).sort().reverse()];
+    return [
+      "All Years",
+      ...Array.from(new Set(extractedYears)).sort().reverse(),
+    ];
   }, [submissions]);
 
   const surveyTypes = useMemo(() => {
@@ -658,11 +679,14 @@ export default function Home() {
       count: severitySummary[severity],
     }));
 
-  const surveyTypeBreakdown = filteredSubmissions.reduce((summary, submission) => {
-    const surveyType = getAnswer(submission.answers, "4") || "Unknown";
-    summary[surveyType] = (summary[surveyType] || 0) + 1;
-    return summary;
-  }, {});
+  const surveyTypeBreakdown = filteredSubmissions.reduce(
+    (summary, submission) => {
+      const surveyType = getAnswer(submission.answers, "4") || "Unknown";
+      summary[surveyType] = (summary[surveyType] || 0) + 1;
+      return summary;
+    },
+    {}
+  );
 
   const surveyTypeBreakdownItems = Object.entries(surveyTypeBreakdown)
     .sort((a, b) => b[1] - a[1])
@@ -745,15 +769,30 @@ export default function Home() {
 
         const hasRealComment = !nonReportableValues.has(normalizedComment);
 
-        return withinSelectedDateRange && hasRealComment;
+        const facilityMatches =
+          selectedFacility === "All Facilities" ||
+          item.facilityName === selectedFacility;
+
+        return withinSelectedDateRange && hasRealComment && facilityMatches;
       })
       .map((item) => ({
         id: item.submissionId,
         facility: item.facilityName || "No facility entered",
-        date: formatDisplayDate(item.submissionDate),
+
+        // IMPORTANT:
+        // rawDate is still the Jotform Date field for filtering/period grouping.
         rawDate: item.submissionDate,
+
+        // IMPORTANT:
+        // date is the display date on the card.
+        // It uses the event date found in the comment if available.
+        date: formatDisplayDate(item.displayDate || item.submissionDate),
+
         rnc: item.rnc || "",
         comment: item.comment || "",
+        eventDateFromComment: item.eventDateFromComment || "",
+        eventDatesFromComment: item.eventDatesFromComment || [],
+        formDate: item.formDate || "",
       }))
       .sort((a, b) => {
         const dateA = parseFacilityDate(a.rawDate);
@@ -765,7 +804,7 @@ export default function Home() {
 
         return dateB - dateA;
       });
-  }, [significantEvents, weeklyDateRange]);
+  }, [significantEvents, weeklyDateRange, selectedFacility]);
 
   return (
     <main style={styles.page}>
