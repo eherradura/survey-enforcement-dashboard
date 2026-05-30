@@ -757,8 +757,10 @@ export default function Home() {
 
     return significantEvents
       .filter((item) => {
+        const filterDate = item.displayDate || item.submissionDate;
+
         const withinSelectedDateRange = isDateWithinSelectedRange(
-          item.submissionDate,
+          filterDate,
           weeklyDateRange.start,
           weeklyDateRange.end
         );
@@ -775,25 +777,26 @@ export default function Home() {
 
         return withinSelectedDateRange && hasRealComment && facilityMatches;
       })
-      .map((item) => ({
-        id: item.submissionId,
-        facility: item.facilityName || "No facility entered",
+      .map((item) => {
+        const displayDate = item.displayDate || item.submissionDate;
 
-        // IMPORTANT:
-        // rawDate is still the Jotform Date field for filtering/period grouping.
-        rawDate: item.submissionDate,
+        return {
+          id: item.submissionId,
+          facility: item.facilityName || "No facility entered",
 
-        // IMPORTANT:
-        // date is the display date on the card.
-        // It uses the event date found in the comment if available.
-        date: formatDisplayDate(item.displayDate || item.submissionDate),
+          // This is used for sorting.
+          rawDate: displayDate,
 
-        rnc: item.rnc || "",
-        comment: item.comment || "",
-        eventDateFromComment: item.eventDateFromComment || "",
-        eventDatesFromComment: item.eventDatesFromComment || [],
-        formDate: item.formDate || "",
-      }))
+          // This is shown on the upper-right of the Significant Event card.
+          date: formatDisplayDate(displayDate),
+
+          rnc: item.rnc || "",
+          comment: item.comment || "",
+          eventDateFromComment: item.eventDateFromComment || "",
+          eventDatesFromComment: item.eventDatesFromComment || [],
+          formDate: item.formDate || "",
+        };
+      })
       .sort((a, b) => {
         const dateA = parseFacilityDate(a.rawDate);
         const dateB = parseFacilityDate(b.rawDate);
