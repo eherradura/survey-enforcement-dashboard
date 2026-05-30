@@ -92,6 +92,7 @@ export default function Home() {
 
         if (!submissionId || !fileId) return;
 
+        // Do not load saved findings for deleted Jotform submissions.
         if (!activeSubmissionIds.has(submissionId)) return;
 
         activeSavedAnalysisCount += 1;
@@ -176,6 +177,7 @@ export default function Home() {
 
     const text = String(value).trim();
 
+    // Handles YYYY-MM-DD from date inputs.
     const yyyymmdd = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if (yyyymmdd) {
       const year = Number(yyyymmdd[1]);
@@ -184,6 +186,7 @@ export default function Home() {
       return new Date(year, month, day);
     }
 
+    // Handles timestamps like 2026-05-27 13:04:26.
     const timestampMatch = text.match(
       /^(\d{4})-(\d{1,2})-(\d{1,2})\s+\d{1,2}:\d{2}/
     );
@@ -195,6 +198,7 @@ export default function Home() {
       return new Date(year, month, day);
     }
 
+    // Handles MM/DD/YYYY and MM-DD-YYYY.
     const mmddyyyy =
       text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/) ||
       text.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
@@ -784,14 +788,19 @@ export default function Home() {
           id: item.submissionId,
           facility: item.facilityName || "No facility entered",
 
-          // This is used for sorting.
+          // Used for sorting.
           rawDate: displayDate,
 
-          // This is shown on the upper-right of the Significant Event card.
+          // Shown on the upper-right of the Significant Event card.
           date: formatDisplayDate(displayDate),
 
           rnc: item.rnc || "",
-          comment: item.comment || "",
+
+          // Cleaned comment from API: leading date removed.
+          comment: item.displayComment || item.comment || "",
+
+          // Troubleshooting fields.
+          originalComment: item.comment || "",
           eventDateFromComment: item.eventDateFromComment || "",
           eventDatesFromComment: item.eventDatesFromComment || [],
           formDate: item.formDate || "",
