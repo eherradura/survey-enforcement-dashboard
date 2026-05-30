@@ -102,8 +102,6 @@ function normalizeTwoDigitYear(yearText) {
   if (year.length === 2) {
     const numericYear = Number(year);
 
-    // Assumes 00-79 means 2000s and 80-99 means 1900s.
-    // For your dashboard, 26 becomes 2026.
     if (numericYear <= 79) return `20${year}`;
     return `19${year}`;
   }
@@ -115,25 +113,24 @@ function padDatePart(value) {
   return String(value || "").padStart(2, "0");
 }
 
-function extractFirstDateFromComment(comment) {
+function extractDatesFromComment(comment) {
   const text = String(comment || "").trim();
 
-  if (!text) return "";
+  if (!text) return [];
 
-  // Finds dates like:
-  // 5/28/26
-  // 05/28/2026
-  // 5-28-26
-  // 05-28-2026
-  const match = text.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/);
+  const matches = Array.from(
+    text.matchAll(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/g)
+  );
 
-  if (!match) return "";
+  const dates = matches.map((match) => {
+    const month = padDatePart(match[1]);
+    const day = padDatePart(match[2]);
+    const year = normalizeTwoDigitYear(match[3]);
 
-  const month = padDatePart(match[1]);
-  const day = padDatePart(match[2]);
-  const year = normalizeTwoDigitYear(match[3]);
+    return `${month}/${day}/${year}`;
+  });
 
-  return `${month}/${day}/${year}`;
+  return Array.from(new Set(dates));
 }
 
 function isRealSignificantEventComment(comment) {
@@ -211,25 +208,27 @@ export async function GET() {
           answers[SAFE_FIELD_IDS.significantEventComment]
         );
 
-        const eventDateFromComment = extractFirstDateFromComment(comment);
-
-        // IMPORTANT:
-        // The dashboard display/filter date should be the actual event date
-        // found in the comment. If no date is found in the comment, then use
-        // the Jotform Date field. If that is blank, use createdAt as fallback.
-        const submissionDate =
-          eventDateFromComment || formDate || submission.created_at || "";
+        const eventDatesFromComment = extractDatesFromComment(comment);
+        const firstEventDateFromComment = eventDatesFromComment[0] || "";
 
         return {
           submissionId: submission.id,
           createdAt: submission.created_at || null,
           updatedAt: submission.updated_at || null,
 
-          // This is now the display/filter date used by the dashboard.
-          submissionDate,
+          // IMPORTANT:
+          // This remains the Jotform Date field and is used for weekly filtering.
+          // This prevents Menifee from disappearing from the 05/27 weekly period.
+          submissionDate: formDate || submission.created_at || "",
 
-          // These are kept for troubleshooting.
-          eventDateFromComment,
+          // IMPORTANT:
+          // This is the actual event date found inside the significant event comment.
+          // This should display on the upper-right of the event card when available.
+          displayDate: firstEventDateFromComment || formDate || submission.created_at || "",
+
+          // Helpful for troubleshooting.
+          eventDateFromComment: firstEventDateFromComment,
+          eventDatesFromComment,
           formDate,
 
           facilityName,
@@ -254,7 +253,7 @@ export async function GET() {
       },
       fieldIds: SAFE_FIELD_IDS,
       dateLogic:
-        "submissionDate uses first date found in significant event comment, then Jotform Date field, then createdAt fallback.",
+        "submissionDate uses the Jotform Date field for filtering. displayDate uses the first date found in the significant event comment when available.",
       count: significantEvents.length,
       significantEvents,
     });
