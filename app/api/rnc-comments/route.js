@@ -50,18 +50,14 @@ function normalizeAnswer(answer) {
 function normalizeDateAnswer(answer, fallbackDate = "") {
   if (!answer) return fallbackDate || "";
 
-  // Primary source: the actual Date field inside the Jotform form.
-  // Jotform Date field commonly returns prettyFormat like 05/27/2026.
   if (typeof answer.prettyFormat === "string" && answer.prettyFormat.trim()) {
     return answer.prettyFormat.trim();
   }
 
-  // Sometimes Jotform returns the date as a direct string.
   if (typeof answer.answer === "string" && answer.answer.trim()) {
     return answer.answer.trim();
   }
 
-  // Sometimes Jotform returns the date as an object.
   if (answer.answer && typeof answer.answer === "object") {
     const values = answer.answer;
 
@@ -90,18 +86,54 @@ function normalizeDateAnswer(answer, fallbackDate = "") {
       return `${month}/${day}/${year}`;
     }
 
-    // Backup only if Jotform changes the date object structure.
-    const objectDateText = Object.values(values)
-      .filter(Boolean)
-      .join("/");
+    const objectDateText = Object.values(values).filter(Boolean).join("/");
 
     if (objectDateText) {
       return objectDateText;
     }
   }
 
-  // Only use the form completion date if the actual Date field is blank.
   return fallbackDate || "";
+}
+
+function normalizeTwoDigitYear(yearText) {
+  const year = String(yearText || "").trim();
+
+  if (year.length === 2) {
+    const numericYear = Number(year);
+
+    // Assumes 00-79 means 2000s and 80-99 means 1900s.
+    // For your dashboard, 26 becomes 2026.
+    if (numericYear <= 79) return `20${year}`;
+    return `19${year}`;
+  }
+
+  return year;
+}
+
+function padDatePart(value) {
+  return String(value || "").padStart(2, "0");
+}
+
+function extractFirstDateFromComment(comment) {
+  const text = String(comment || "").trim();
+
+  if (!text) return "";
+
+  // Finds dates like:
+  // 5/28/26
+  // 05/28/2026
+  // 5-28-26
+  // 05-28-2026
+  const match = text.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/);
+
+  if (!match) return "";
+
+  const month = padDatePart(match[1]);
+  const day = padDatePart(match[2]);
+  const year = normalizeTwoDigitYear(match[3]);
+
+  return `${month}/${day}/${year}`;
 }
 
 function isRealSignificantEventComment(comment) {
@@ -168,10 +200,7 @@ export async function GET() {
           answers[SAFE_FIELD_IDS.facilityName]
         );
 
-        // IMPORTANT:
-        // This uses the actual Date cell from the form first.
-        // It only falls back to createdAt if the Date field is blank.
-        const submissionDate = normalizeDateAnswer(
+        const formDate = normalizeDateAnswer(
           answers[SAFE_FIELD_IDS.date],
           submission.created_at || ""
         );
@@ -182,11 +211,27 @@ export async function GET() {
           answers[SAFE_FIELD_IDS.significantEventComment]
         );
 
+        const eventDateFromComment = extractFirstDateFromComment(comment);
+
+        // IMPORTANT:
+        // The dashboard display/filter date should be the actual event date
+        // found in the comment. If no date is found in the comment, then use
+        // the Jotform Date field. If that is blank, use createdAt as fallback.
+        const submissionDate =
+          eventDateFromComment || formDate || submission.created_at || "";
+
         return {
           submissionId: submission.id,
           createdAt: submission.created_at || null,
           updatedAt: submission.updated_at || null,
+
+          // This is now the display/filter date used by the dashboard.
           submissionDate,
+
+          // These are kept for troubleshooting.
+          eventDateFromComment,
+          formDate,
+
           facilityName,
           rnc,
           comment,
@@ -208,6 +253,8 @@ export async function GET() {
           "Resource Nurse Consultant Comments - Reportable / Significant Event",
       },
       fieldIds: SAFE_FIELD_IDS,
+      dateLogic:
+        "submissionDate uses first date found in significant event comment, then Jotform Date field, then createdAt fallback.",
       count: significantEvents.length,
       significantEvents,
     });
