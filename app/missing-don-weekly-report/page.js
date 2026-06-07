@@ -10,10 +10,10 @@ import {
   defaultFromDate,
   defaultToDate,
   formatDisplayDate,
-  getConsultantByFacility,
   getSignificantFacilityName,
   getSignificantSubmittedDate,
   isDateWithinRange,
+  normalizeFacilityName,
 } from "../lib/dashboardAssignments";
 
 export default function MissingDonWeeklyReportPage() {
@@ -34,11 +34,12 @@ function LoadingPage() {
 
 function MissingDonWeeklyReportContent() {
   const searchParams = useSearchParams();
+
   const fromDate = searchParams.get("from") || defaultFromDate();
   const toDate = searchParams.get("to") || defaultToDate();
 
   const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState([]);
+  const [allDonReports, setAllDonReports] = useState([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -61,16 +62,12 @@ function MissingDonWeeklyReportContent() {
           );
         }
 
-        const items = Array.isArray(data?.significantEvents)
-          ? data.significantEvents
-          : Array.isArray(data?.items)
-          ? data.items
-          : Array.isArray(data)
-          ? data
+        const reports = Array.isArray(data?.allDonReports)
+          ? data.allDonReports
           : [];
 
         if (active) {
-          setRows(items);
+          setAllDonReports(reports);
         }
       } catch (err) {
         if (active) {
@@ -93,7 +90,7 @@ function MissingDonWeeklyReportContent() {
   const submittedFacilitySet = useMemo(() => {
     const set = new Set();
 
-    rows.forEach((row) => {
+    allDonReports.forEach((row) => {
       const facilityName = getSignificantFacilityName(row);
 
       const dateValue =
@@ -106,12 +103,12 @@ function MissingDonWeeklyReportContent() {
       if (!dateValue) return;
 
       if (isDateWithinRange(dateValue, fromDate, toDate)) {
-        set.add(normalizeLikeFacility(facilityName));
+        set.add(normalizeFacilityName(facilityName));
       }
     });
 
     return set;
-  }, [rows, fromDate, toDate]);
+  }, [allDonReports, fromDate, toDate]);
 
   const groupedMissing = useMemo(() => {
     return DIVISIONS.map((division) => {
@@ -119,14 +116,14 @@ function MissingDonWeeklyReportContent() {
         const facilities = CONSULTANT_ASSIGNMENTS[consultant] || [];
 
         const missingFacilities = facilities.filter((facility) => {
-          const normalizedFacility = normalizeLikeFacility(facility);
+          const normalizedAssignedFacility = normalizeFacilityName(facility);
 
           const wasSubmitted = Array.from(submittedFacilitySet).some(
             (submittedFacility) => {
               return (
-                submittedFacility === normalizedFacility ||
-                submittedFacility.includes(normalizedFacility) ||
-                normalizedFacility.includes(submittedFacility)
+                submittedFacility === normalizedAssignedFacility ||
+                submittedFacility.includes(normalizedAssignedFacility) ||
+                normalizedAssignedFacility.includes(submittedFacility)
               );
             }
           );
@@ -151,26 +148,38 @@ function MissingDonWeeklyReportContent() {
     return (
       sum +
       division.consultants.reduce(
-        (sub, consultant) => sub + consultant.missingFacilities.length,
+        (subTotal, consultant) =>
+          subTotal + consultant.missingFacilities.length,
         0
       )
     );
   }, 0);
+
+  const totalSubmitted = submittedFacilitySet.size;
 
   return (
     <div style={styles.page}>
       <div style={styles.header}>
         <div>
           <div style={styles.eyebrow}>Missing DON Weekly Report</div>
+
           <h1 style={styles.title}>Facilities Missing DON Weekly Report</h1>
+
           <div style={styles.subTitle}>
             Date Range: {formatDisplayDate(fromDate)} to{" "}
             {formatDisplayDate(toDate)}
           </div>
+
+          <div style={styles.sourceNote}>
+            Based on all DON weekly report submissions, not only significant
+            event comments.
+          </div>
         </div>
 
         <div style={styles.headerActions}>
+          <div style={styles.submittedPill}>{totalSubmitted} Submitted</div>
           <div style={styles.countPill}>{totalMissing} Missing</div>
+
           <Link href="/" style={styles.backButton}>
             Back To Dashboard
           </Link>
@@ -184,71 +193,79 @@ function MissingDonWeeklyReportContent() {
       ) : error ? (
         <div style={styles.errorBox}>{error}</div>
       ) : (
-        groupedMissing.map((division) => (
-          <section
-            key={division.name}
-            style={{
-              ...styles.divisionSection,
-              borderColor: division.accent,
-              background: division.bg,
-            }}
-          >
-            <div style={styles.divisionTitle}>{division.title}</div>
+        groupedMissing.map((division) => {
+          const divisionMissingCount = division.consultants.reduce(
+            (sum, consultant) => sum + consultant.missingFacilities.length,
+            0
+          );
 
-            <div style={styles.consultantGrid}>
-              {division.consultants.map((consultant) => (
-                <div key={consultant.consultant} style={styles.card}>
-                  <div style={styles.cardHeader}>
-                    <img
-                      src={
-                        CONSULTANT_PHOTOS[consultant.consultant] ||
-                        "/consultants/.gitkeep"
-                      }
-                      alt={consultant.consultant}
-                      style={styles.photo}
-                    />
+          return (
+            <section
+              key={division.name}
+              style={{
+                ...styles.divisionSection,
+                borderColor: division.accent,
+                background: division.bg,
+              }}
+            >
+              <div style={styles.divisionHeader}>
+                <div style={styles.divisionTitle}>{division.title}</div>
 
-                    <div style={styles.consultantName}>
-                      {consultant.consultant}
-                    </div>
-
-                    <div style={styles.missingPill}>
-                      {consultant.missingFacilities.length} Missing
-                    </div>
-                  </div>
-
-                  {consultant.missingFacilities.length === 0 ? (
-                    <div style={styles.goodBox}>
-                      No Missing DON Weekly Report In This Date Range
-                    </div>
-                  ) : (
-                    <div style={styles.facilityList}>
-                      {consultant.missingFacilities.map((facility) => (
-                        <div key={facility} style={styles.facilityRow}>
-                          {facility}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <div style={styles.divisionMissingPill}>
+                  {divisionMissingCount} Missing
                 </div>
-              ))}
-            </div>
-          </section>
-        ))
+              </div>
+
+              <div style={styles.consultantGrid}>
+                {division.consultants.map((consultant) => (
+                  <div key={consultant.consultant} style={styles.card}>
+                    <div style={styles.cardHeader}>
+                      <img
+                        src={
+                          CONSULTANT_PHOTOS[consultant.consultant] ||
+                          "/consultants/.gitkeep"
+                        }
+                        alt={consultant.consultant}
+                        style={styles.photo}
+                      />
+
+                      <div style={styles.consultantName}>
+                        {consultant.consultant}
+                      </div>
+
+                      <div
+                        style={
+                          consultant.missingFacilities.length === 0
+                            ? styles.zeroMissingPill
+                            : styles.missingPill
+                        }
+                      >
+                        {consultant.missingFacilities.length} Missing
+                      </div>
+                    </div>
+
+                    {consultant.missingFacilities.length === 0 ? (
+                      <div style={styles.goodBox}>
+                        No Missing DON Weekly Report In This Date Range
+                      </div>
+                    ) : (
+                      <div style={styles.facilityList}>
+                        {consultant.missingFacilities.map((facility) => (
+                          <div key={facility} style={styles.facilityRow}>
+                            {facility}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          );
+        })
       )}
     </div>
   );
-}
-
-function normalizeLikeFacility(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[’'`]/g, "")
-    .replace(/\([^)]*\)/g, "")
-    .replace(/post acute/g, "postacute")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
 }
 
 const styles = {
@@ -273,6 +290,7 @@ const styles = {
     border: "1px solid #d9e3f0",
     borderRadius: "18px",
     padding: "18px",
+    boxShadow: "0 6px 16px rgba(15,23,42,0.045)",
   },
 
   eyebrow: {
@@ -296,11 +314,26 @@ const styles = {
     fontWeight: 700,
   },
 
+  sourceNote: {
+    marginTop: "5px",
+    fontSize: "12px",
+    color: "#64748b",
+    fontWeight: 700,
+  },
+
   headerActions: {
     display: "flex",
     gap: "10px",
     alignItems: "center",
     flexWrap: "wrap",
+  },
+
+  submittedPill: {
+    background: "#dcfce7",
+    color: "#166534",
+    borderRadius: "999px",
+    padding: "10px 14px",
+    fontWeight: 900,
   },
 
   countPill: {
@@ -345,11 +378,28 @@ const styles = {
     padding: "16px",
   },
 
+  divisionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    flexWrap: "wrap",
+    marginBottom: "14px",
+  },
+
   divisionTitle: {
     fontSize: "24px",
     fontWeight: 900,
-    marginBottom: "14px",
     color: "#0f172a",
+  },
+
+  divisionMissingPill: {
+    background: "#fee2e2",
+    color: "#b91c1c",
+    borderRadius: "999px",
+    padding: "8px 12px",
+    fontWeight: 900,
+    fontSize: "13px",
   },
 
   consultantGrid: {
@@ -363,6 +413,7 @@ const styles = {
     border: "1px solid #d9e3f0",
     borderRadius: "16px",
     padding: "14px",
+    boxShadow: "0 2px 8px rgba(15,23,42,0.035)",
   },
 
   cardHeader: {
@@ -392,6 +443,15 @@ const styles = {
   missingPill: {
     background: "#fee2e2",
     color: "#b91c1c",
+    borderRadius: "999px",
+    padding: "6px 10px",
+    fontWeight: 900,
+    fontSize: "12px",
+  },
+
+  zeroMissingPill: {
+    background: "#dcfce7",
+    color: "#166534",
     borderRadius: "999px",
     padding: "6px 10px",
     fontWeight: 900,
