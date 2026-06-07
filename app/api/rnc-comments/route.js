@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 const JOTFORM_API_BASE = "https://hipaa-api.jotform.com";
 const FORM_ID = "241300815293045";
 
-// Hard-coded allowlist. These are the ONLY Jotform fields this route will return.
+// Jotform field IDs from the DON Weekly Report form.
 // 3  = Facility Name:
 // 4  = Date
 // 32 = RNC:
@@ -27,20 +27,22 @@ const NON_REPORTABLE_VALUES = new Set([
   "no reportable events",
   "nothing",
   "nil",
+  "-",
 ]);
 
 function normalizeAnswer(answer) {
   if (!answer) return "";
 
-  if (typeof answer.answer === "string") return answer.answer;
-  if (typeof answer.prettyFormat === "string") return answer.prettyFormat;
+  if (typeof answer.answer === "string") return answer.answer.trim();
+
+  if (typeof answer.prettyFormat === "string") return answer.prettyFormat.trim();
 
   if (Array.isArray(answer.answer)) {
-    return answer.answer.join(", ");
+    return answer.answer.filter(Boolean).join(", ").trim();
   }
 
   if (answer.answer && typeof answer.answer === "object") {
-    return Object.values(answer.answer).filter(Boolean).join(", ");
+    return Object.values(answer.answer).filter(Boolean).join(", ").trim();
   }
 
   return "";
@@ -160,14 +162,16 @@ function removeLeadingDateFromComment(comment) {
 
   if (!text) return "";
 
-  // Removes leading dates such as:
-  // 5/27
-  // 5/27/26
-  // 05/27/2026
-  // 5-27
-  // 5-27-26
   return text
     .replace(/^\s*\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\s*[-–—:]?\s*/i, "")
+    .trim();
+}
+
+function stripMrn(text) {
+  return String(text || "")
+    .replace(/\bMRN\s*#?\s*\d+\b/gi, "")
+    .replace(/\bmedical record number\s*#?\s*\d+\b/gi, "")
+    .replace(/\s{2,}/g, " ")
     .trim();
 }
 
@@ -227,7 +231,7 @@ export async function GET() {
 
     const submissions = submissionsData.content || [];
 
-    const significantEvents = submissions
+    const allDonReports = submissions
       .map((submission) => {
         const answers = submission.answers || {};
 
@@ -242,51 +246,58 @@ export async function GET() {
 
         const rnc = normalizeAnswer(answers[SAFE_FIELD_IDS.rnc]);
 
-        const comment = normalizeAnswer(
+        const rawComment = normalizeAnswer(
           answers[SAFE_FIELD_IDS.significantEventComment]
         );
 
         const eventDatesFromComment = extractDatesFromComment(
-          comment,
+          rawComment,
           formDate || submission.created_at || ""
         );
 
         const firstEventDateFromComment = eventDatesFromComment[0] || "";
 
-        const displayComment = removeLeadingDateFromComment(comment);
+        const displayComment = stripMrn(
+          removeLeadingDateFromComment(rawComment)
+        );
 
         return {
           submissionId: submission.id,
           createdAt: submission.created_at || null,
           updatedAt: submission.updated_at || null,
 
-          // Fallback date from the Jotform Date field.
+          // DON report date from the form.
+          // This is what Missing DON Weekly Report should use to know whether
+          // the facility submitted a report during the selected period.
+          formDate,
           submissionDate: formDate || submission.created_at || "",
 
-          // Primary date used by the dashboard for Significant Events.
+          facilityName,
+          rnc,
+
+          // Significant event fields.
+          comment: rawComment,
+          displayComment,
+          eventDateFromComment: firstEventDateFromComment,
+          eventDatesFromComment,
+
+          // Significant Events should use this for display/filtering.
           displayDate:
             firstEventDateFromComment ||
             formDate ||
             submission.created_at ||
             "",
-
-          eventDateFromComment: firstEventDateFromComment,
-          eventDatesFromComment,
-          formDate,
-
-          facilityName,
-          rnc,
-
-          // Original full cell value.
-          comment,
-
-          // Cleaned text shown on dashboard.
-          displayComment,
         };
       })
       .filter((item) => {
-        return isRealSignificantEventComment(item.comment);
+        // For all DON reports, we only need a facility and a report date.
+        // We do NOT require a significant event comment.
+        return Boolean(item.facilityName && item.submissionDate);
       });
+
+    const significantEvents = allDonReports.filter((item) =>
+      isRealSignificantEventComment(item.comment)
+    );
 
     return Response.json({
       success: true,
@@ -300,16 +311,30 @@ export async function GET() {
           "Resource Nurse Consultant Comments - Reportable / Significant Event",
       },
       fieldIds: SAFE_FIELD_IDS,
-      dateLogic:
-        "Significant Events use the first date found in the comment cell, including dates without a year. The leading date is removed from the displayed comment.",
-      count: significantEvents.length,
+
+      counts: {
+        allDonReports: allDonReports.length,
+        significantEvents: significantEvents.length,
+      },
+
+      // Use this for Missing DON Weekly Report.
+      allDonReports,
+
+      // Use this for the Significant Events tiles.
       significantEvents,
+
+      dateLogic: {
+        missingDonWeeklyReport:
+          "Uses allDonReports and the Jotform Date field/formDate to determine whether a DON weekly report was submitted.",
+        significantEvents:
+          "Uses the first date found inside the significant event comment cell for display/filtering, with formDate as fallback.",
+      },
     });
   } catch (error) {
     return Response.json(
       {
         success: false,
-        error: error.message || "Unable to retrieve RNC significant events.",
+        error: error.message || "Unable to retrieve RNC comments.",
       },
       { status: 500 }
     );
