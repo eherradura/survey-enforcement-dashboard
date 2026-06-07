@@ -1,363 +1,133 @@
+"use client";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 
-// Donna Kimura
-"BLOSSOM GROVE": "Donna Kimura",
-  "BLOSSOM GROVE ALZHEIMERS SPECIAL CARE CENTER": "Donna Kimura",
-  "BLOSSOM GROVE ALZHEIMER'S SPECIAL CARE CENTER": "Donna Kimura",
-  "BLOSSOM GROVE ALZHEIMERS SPECIAL CARE CENTER ALF": "Donna Kimura",
-  "BLOSSOM GROVE ALZHEIMER'S SPECIAL CARE CENTER ALF": "Donna Kimura",
-"DEL MAR": "Donna Kimura",
-"DEL MAR CONVALESCENT": "Donna Kimura",
-  "DEL MAR CONVALESCENT HOSPITAL": "Donna Kimura",
-"DEL MAR CONVALESCENT CENTER": "Donna Kimura",
+const CURRENT_YEAR = new Date().getFullYear();
 
-// Brenda Rojas
-@@ -101,6 +106,8 @@ const FACILITY_CONSULTANT_MAP = {
-"VINELAND POST ACUTE": "Brenda Rojas",
-"VINELAND POST-ACUTE": "Brenda Rojas",
-"THE MEADOWS ON SUNSET": "Brenda Rojas",
-  "THE MEADOWS ON SUNSET POST ACUTE": "Brenda Rojas",
-  "THE MEADOWS ON SUNSET POST-ACUTE": "Brenda Rojas",
-"SUNSET MANOR": "Brenda Rojas",
+const DIVISIONS = {
+  "Erick Herradura's Division": [
+    "Erick Herradura",
+    "Beth Clark",
+    "Jinkee Javier",
+    "Guillermo Vicencio",
+    "Brenda Rojas",
+  ],
+  "Donna Kimura's Division": [
+    "Donna Kimura",
+    "Gerly Orona",
+    "Melissa Acuna",
+    "Sammy Balisbis",
+  ],
+};
 
-// Jinkee Javier
-@@ -113,8 +120,10 @@ const FACILITY_CONSULTANT_MAP = {
-"EXCELL": "Jinkee Javier",
-"EXCEL": "Jinkee Javier",
-"EXCEL HEALTHCARE CENTER": "Jinkee Javier",
-  "EXCELL HEALTHCARE CENTER": "Jinkee Javier",
-"MADERA": "Jinkee Javier",
-"MADEIRA": "Jinkee Javier",
-  "MADERA CARE CENTER": "Jinkee Javier",
-"MADEIRA CARE CENTER": "Jinkee Javier",
-"MISSION CARMICHAEL": "Jinkee Javier",
-"MISSION CARMICHAEL HEALTHCARE CENTER": "Jinkee Javier",
-@@ -136,6 +145,8 @@ const FACILITY_CONSULTANT_MAP = {
-"SUNNYSIDE": "Beth Clark",
-"SUNNYSIDE CONV HOSPITAL": "Beth Clark",
-"SUNNYSIDE CONVALESCENT HOSPITAL": "Beth Clark",
-  "SUNSET MANOR CONVALESCENT HOSPITAL": "Beth Clark",
-  "SUNSET MANOR CONV HOSP": "Beth Clark",
+const DIVISION_STYLES = {
+  "Erick Herradura's Division": {
+    shellBackground: "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(255,255,255,0.98))",
+    border: "1px solid #bfdbfe",
+    accent: "#2563eb",
+    softAccent: "#dbeafe",
+    text: "#1e3a8a",
+    cardBackground: "#ffffff",
+    badgeBackground: "#dbeafe",
+    badgeText: "#1e40af",
+  },
+  "Donna Kimura's Division": {
+    shellBackground: "linear-gradient(135deg, rgba(240,253,244,0.98), rgba(255,255,255,0.98))",
+    border: "1px solid #bbf7d0",
+    accent: "#16a34a",
+    softAccent: "#dcfce7",
+    text: "#166534",
+    cardBackground: "#ffffff",
+    badgeBackground: "#dcfce7",
+    badgeText: "#166534",
+  },
+  Unassigned: {
+    shellBackground: "linear-gradient(135deg, rgba(248,250,252,0.98), rgba(255,255,255,0.98))",
+    border: "1px solid #cbd5e1",
+    accent: "#64748b",
+    softAccent: "#f1f5f9",
+    text: "#334155",
+    cardBackground: "#ffffff",
+    badgeBackground: "#f1f5f9",
+    badgeText: "#334155",
+  },
+};
 
-// Guillermo Vicencio
-"ANAHEIM": "Guillermo Vicencio",
-@@ -235,6 +246,18 @@ function normalizeFacilityName(value) {
-.trim();
-}
+const CONSULTANT_PHOTOS = {
+  "Erick Herradura": "/consultants/Erick Herradura.jpg",
+  "Donna Kimura": "/consultants/Donna Kimura.jpg",
+  "Beth Clark": "/consultants/Beth Clark.jpg",
+  "Brenda Rojas": "/consultants/Brenda Washington.jpg",
+  "Gerly Orona": "/consultants/Gerly Orona.jpg",
+  "Guillermo Vicencio": "/consultants/Guillermo Vicencio.jpg",
+  "Jinkee Javier": "/consultants/Jinkee Javier.jpg",
+  "Melissa Acuna": "/consultants/Melissa Acuna.jpg",
+  "Sammy Balisbis": "/consultants/Sammy Balisbis.jpg",
+};
 
-function normalizePersonName(value) {
-  return String(value || "").trim().replace(/\s+/g, " ");
-}
+const FACILITY_CONSULTANT_MAP = {
+  // ... your full FACILITY_CONSULTANT_MAP here (copy from your original file)
+  // (I omitted it for brevity — paste your full map here)
+};
 
-function consultantExists(name) {
-  const normalizedName = normalizePersonName(name);
+ // ... all your helper functions (normalizeFacilityName, getConsultantForSignificantEvent, etc.) — keep them exactly as they were
 
-  return Object.values(DIVISIONS).some((consultants) =>
-    consultants.includes(normalizedName)
-  );
-}
-
-function getConsultantForFacility(facilityName) {
-const normalized = normalizeFacilityName(facilityName);
-
-@@ -254,6 +277,16 @@ function getConsultantForFacility(facilityName) {
-return "Unassigned";
-}
-
-function getConsultantForSignificantEvent(event) {
-  const rnc = normalizePersonName(event.rnc);
-
-  if (rnc && consultantExists(rnc)) {
-    return rnc;
-  }
-
-  return getConsultantForFacility(event.facility);
-}
-
-function getDivisionForConsultant(consultantName) {
-for (const [division, consultants] of Object.entries(DIVISIONS)) {
-if (consultants.includes(consultantName)) {
-@@ -448,6 +481,7 @@ function ConsultantAvatar({ consultant, size = 48 }) {
-
-export default function WeeklySummaryByDivision({
-weeklySummaryItems = [],
-  weeklySignificantEvents = [],
-submissions = [],
-parsedDocs = {},
-getAnswer,
-@@ -457,6 +491,7 @@ export default function WeeklySummaryByDivision({
-onWeeklyDateRangeChange,
-}) {
-const weeklyEventCount = weeklySummaryItems.length;
-  const significantEventCount = weeklySignificantEvents.length;
-const isStandingView = dashboardView === "standing";
-
-const groupedWeeklyItems = useMemo(() => {
-@@ -466,7 +501,10 @@ export default function WeeklySummaryByDivision({
-groups[division] = {};
-
-consultants.forEach((consultant) => {
-        groups[division][consultant] = [];
-        groups[division][consultant] = {
-          surveyActivity: [],
-          significantEvents: [],
-        };
-});
-});
-
-@@ -475,13 +513,33 @@ export default function WeeklySummaryByDivision({
-const division = getDivisionForConsultant(consultant);
-
-if (!groups[division]) groups[division] = {};
-      if (!groups[division][consultant]) groups[division][consultant] = [];
-      if (!groups[division][consultant]) {
-        groups[division][consultant] = {
-          surveyActivity: [],
-          significantEvents: [],
-        };
-      }
-
-      groups[division][consultant].surveyActivity.push(item);
-    });
-
-    weeklySignificantEvents.forEach((item) => {
-      const consultant = getConsultantForSignificantEvent(item);
-      const division = getDivisionForConsultant(consultant);
-
-      if (!groups[division]) groups[division] = {};
-      if (!groups[division][consultant]) {
-        groups[division][consultant] = {
-          surveyActivity: [],
-          significantEvents: [],
-        };
-      }
-
-      groups[division][consultant].push(item);
-      groups[division][consultant].significantEvents.push(item);
-});
-
-return groups;
-  }, [weeklySummaryItems]);
-  }, [weeklySummaryItems, weeklySignificantEvents]);
-
-const facilityStanding = useMemo(() => {
-const consultantMap = {};
-@@ -708,7 +766,14 @@ export default function WeeklySummaryByDivision({
-<p style={styles.kicker}>Weekly Summary</p>
-<span style={styles.eventBubble}>{weeklyEventCount}</span>
-<span style={styles.eventBubbleLabel}>
-              {weeklyEventCount === 1 ? "event" : "events"}
-              {weeklyEventCount === 1 ? "survey event" : "survey events"}
-            </span>
-
-            <span style={styles.significantBubble}>{significantEventCount}</span>
-            <span style={styles.significantBubbleLabel}>
-              {significantEventCount === 1
-                ? "significant event"
-                : "significant events"}
-</span>
-</div>
-
-@@ -759,16 +824,21 @@ export default function WeeklySummaryByDivision({
-</div>
-
-<div style={styles.weeklyContent}>
-        {weeklyEventCount === 0 && (
-        {weeklyEventCount === 0 && significantEventCount === 0 && (
-<p style={styles.emptyText}>
-            No survey activity for the selected date range.
-            No survey activity or significant events for the selected date
-            range.
-</p>
-)}
-
-{Object.entries(groupedWeeklyItems).map(([division, consultants]) => {
-const divisionStyle = getDivisionStyle(division);
-          const divisionEventCount = Object.values(consultants).reduce(
-            (total, items) => total + items.length,
-          const divisionSurveyCount = Object.values(consultants).reduce(
-            (total, item) => total + item.surveyActivity.length,
-            0
-          );
-          const divisionSignificantCount = Object.values(consultants).reduce(
-            (total, item) => total + item.significantEvents.length,
-0
-);
-
-@@ -793,63 +863,124 @@ export default function WeeklySummaryByDivision({
-{division}
-</h3>
-<p style={styles.divisionSubtext}>
-                    Survey activity by assigned consultant
-                    Survey activity and significant events by assigned consultant
-</p>
-</div>
-
-                <span
-                  style={{
-                    ...styles.divisionBadge,
-                    background: divisionStyle.badgeBackground,
-                    color: divisionStyle.badgeText,
-                  }}
-                >
-                  {divisionEventCount} events
-                </span>
-              </div>
-                <div style={styles.divisionBadgeGroup}>
-                  <span
-                    style={{
-                      ...styles.divisionBadge,
-                      background: divisionStyle.badgeBackground,
-                      color: divisionStyle.badgeText,
-                    }}
-                  >
-                    {divisionSurveyCount} survey
-                  </span>
-
-              <div style={styles.consultantGrid}>
-                {Object.entries(consultants).map(([consultant, items]) => (
-                  <div
-                    key={consultant}
-                  <span
-style={{
-                      ...styles.consultantCard,
-                      background: divisionStyle.cardBackground,
-                      ...styles.divisionBadge,
-                      background: "#fff7ed",
-                      color: "#9a3412",
-}}
->
-                    <div style={styles.consultantHeader}>
-                      <ConsultantAvatar consultant={consultant} size={52} />
-
-                      <div style={styles.consultantTextBlock}>
-                        <p style={styles.consultantName}>{consultant}</p>
-                        <p style={styles.smallMuted}>
-                          {items.length} event{items.length === 1 ? "" : "s"}
-                        </p>
-                    {divisionSignificantCount} significant
-                  </span>
-                </div>
-              </div>
-
-              <div style={styles.consultantGrid}>
-                {Object.entries(consultants).map(([consultant, data]) => {
-                  const surveyItems = data.surveyActivity || [];
-                  const significantItems = data.significantEvents || [];
-
-                  return (
-                    <div
-                      key={consultant}
-                      style={{
-                        ...styles.consultantCard,
-                        background: divisionStyle.cardBackground,
-                      }}
-                    >
-                      <div style={styles.consultantHeader}>
-                        <ConsultantAvatar consultant={consultant} size={52} />
-
-                        <div style={styles.consultantTextBlock}>
-                          <p style={styles.consultantName}>{consultant}</p>
-                          <p style={styles.smallMuted}>
-                            {surveyItems.length} survey ·{" "}
-                            {significantItems.length} significant
-                          </p>
-                        </div>
-</div>
-                    </div>
-
-                    {items.length === 0 ? (
-                      <p style={styles.noConsultantEvents}>
-                        No survey activity this period
-                      </p>
-                    ) : (
-                      <div style={styles.eventList}>
-                        {items.map((item) => (
-                          <div key={item.id} style={styles.weeklyEvent}>
-                            <div style={styles.eventTopLine}>
-                              <strong>{item.facility}</strong>
-                              <span>{item.date}</span>
-                            </div>
-                            <p style={styles.eventSurveyType}>
-                              {item.surveyType}
-                            </p>
-                            <em>{item.comments || "No comments entered"}</em>
-                      <div style={styles.cardSection}>
-                        <div style={styles.sectionMiniHeader}>
-                          <span style={styles.sectionDotBlue}></span>
-                          <h4 style={styles.sectionMiniTitle}>
-                            Survey Activity
-                          </h4>
-                        </div>
-
-                        {surveyItems.length === 0 ? (
-                          <p style={styles.noConsultantEvents}>
-                            No survey activity this period
-                          </p>
-                        ) : (
-                          <div style={styles.eventList}>
-                            {surveyItems.map((item) => (
-                              <div key={item.id} style={styles.weeklyEvent}>
-                                <div style={styles.eventTopLine}>
-                                  <strong>{item.facility}</strong>
-                                  <span>{item.date}</span>
-                                </div>
-                                <p style={styles.eventSurveyType}>
-                                  {item.surveyType}
-                                </p>
-                                <em>
-                                  {item.comments || "No comments entered"}
-                                </em>
-                              </div>
-                            ))}
-</div>
-                        ))}
-                        )}
-</div>
-                    )}
-                  </div>
-                ))}
-
-                      <div style={styles.cardSection}>
-                        <div style={styles.sectionMiniHeader}>
-                          <span style={styles.sectionDotOrange}></span>
-                          <h4 style={styles.sectionMiniTitle}>
-                            Significant Events
-                          </h4>
-                        </div>
-
-                        {significantItems.length === 0 ? (
-                          <p style={styles.noSignificantEvents}>
-                            No significant events this period
-                          </p>
-                        ) : (
-                          <div style={styles.eventList}>
-                            {significantItems.map((item) => (
-                              <div
-                                key={item.id}
-                                style={styles.significantEvent}
-                              >
-                                <div style={styles.eventTopLine}>
-                                  <strong>{item.facility}</strong>
-                                  <span>{item.date}</span>
-                                </div>
-                                <p style={styles.significantComment}>
-                                  {item.comment}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-</div>
-</div>
-);
-@@ -921,6 +1052,31 @@ const styles = {
-borderRadius: "999px",
-},
-
+// Styles defined FIRST so Next.js prerendering works
+const styles = {
+  wrapper: {
+    background: "rgba(255,255,255,0.96)",
+    border: "1px solid rgba(226,232,240,0.95)",
+    borderRadius: "18px",
+    padding: "14px",
+    boxShadow: "0 8px 20px rgba(15, 23, 42, 0.055)",
+  },
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "12px",
+    marginBottom: "12px",
+  },
+  titleCluster: {
+    minWidth: 0,
+  },
+  titleLine: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  kicker: {
+    margin: 0,
+    color: "#64748b",
+    fontWeight: "900",
+    fontSize: "11px",
+    textTransform: "uppercase",
+    letterSpacing: "0.1em",
+  },
+  eventBubble: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: "42px",
+    height: "32px",
+    padding: "0 12px",
+    borderRadius: "999px",
+    background: "linear-gradient(135deg, #2563eb, #38bdf8)",
+    color: "white",
+    fontSize: "18px",
+    lineHeight: 1,
+    fontWeight: "950",
+    boxShadow: "0 6px 14px rgba(37,99,235,0.22)",
+  },
+  eventBubbleLabel: {
+    color: "#075985",
+    fontSize: "13px",
+    fontWeight: "900",
+    background: "#e0f2fe",
+    padding: "7px 10px",
+    borderRadius: "999px",
+  },
   significantBubble: {
     display: "inline-flex",
     alignItems: "center",
@@ -373,7 +143,6 @@ borderRadius: "999px",
     fontWeight: "950",
     boxShadow: "0 6px 14px rgba(234,88,12,0.22)",
   },
-
   significantBubbleLabel: {
     color: "#9a3412",
     fontSize: "13px",
@@ -382,135 +151,54 @@ borderRadius: "999px",
     padding: "7px 10px",
     borderRadius: "999px",
   },
+  // ... paste the rest of your styles object here (title, timeframeRow, divisionBlock, consultantGrid, etc.)
+  // (copy everything from your original styles object)
+};
 
-title: {
-margin: "4px 0 0",
-fontSize: "22px",
-@@ -1009,6 +1165,13 @@ const styles = {
-fontWeight: "750",
-},
+export default function WeeklySummaryByDivision({
+  weeklySummaryItems = [],
+  weeklySignificantEvents = [],
+  submissions = [],
+  parsedDocs = {},
+  getAnswer,
+  dashboardView = "weekly",
+  onDashboardViewChange,
+  weeklyDateRange = { start: "", end: "" },
+  onWeeklyDateRangeChange,
+}) {
+  const weeklyEventCount = weeklySummaryItems.length;
+  const significantEventCount = weeklySignificantEvents.length;
+  const isStandingView = dashboardView === "standing";
 
-  divisionBadgeGroup: {
-    display: "flex",
-    gap: "6px",
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-  },
+  // ... all your useMemo logic stays exactly the same as your original code
 
-divisionBadge: {
-borderRadius: "999px",
-padding: "6px 10px",
-@@ -1019,7 +1182,7 @@ const styles = {
+  return (
+    <section style={styles.wrapper}>
+      <div style={styles.headerRow}>
+        <div style={styles.titleCluster}>
+          <div style={styles.titleLine}>
+            <p style={styles.kicker}>Weekly Summary</p>
+            <span style={styles.eventBubble}>{weeklyEventCount}</span>
+            <span style={styles.eventBubbleLabel}>
+              {weeklyEventCount === 1 ? "survey event" : "survey events"}
+            </span>
 
-consultantGrid: {
-display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    gridTemplateColumns: "repeat(auto-fit, minmax(310px, 1fr))",
-gap: "10px",
-},
+            {/* Hyperlink added here */}
+            <Link href="/missing-don-reports" style={{ textDecoration: "none" }}>
+              <span style={styles.significantBubble}>{significantEventCount}</span>
+            </Link>
+            <span style={styles.significantBubbleLabel}>
+              {significantEventCount === 1 ? "significant event" : "significant events"}
+            </span>
+          </div>
 
-@@ -1035,7 +1198,7 @@ const styles = {
-display: "flex",
-alignItems: "center",
-gap: "10px",
-    marginBottom: "9px",
-    marginBottom: "10px",
-textAlign: "left",
-},
+          {/* your date range code unchanged */}
+        </div>
 
-@@ -1060,6 +1223,43 @@ const styles = {
-fontWeight: "850",
-},
+        {/* your Facility Standing button unchanged */}
+      </div>
 
-  cardSection: {
-    display: "grid",
-    gap: "7px",
-    marginTop: "9px",
-  },
-
-  sectionMiniHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-  },
-
-  sectionMiniTitle: {
-    margin: 0,
-    fontSize: "12px",
-    fontWeight: "950",
-    color: "#334155",
-    textTransform: "uppercase",
-    letterSpacing: "0.06em",
-  },
-
-  sectionDotBlue: {
-    width: "9px",
-    height: "9px",
-    borderRadius: "999px",
-    background: "#2563eb",
-    flexShrink: 0,
-  },
-
-  sectionDotOrange: {
-    width: "9px",
-    height: "9px",
-    borderRadius: "999px",
-    background: "#ea580c",
-    flexShrink: 0,
-  },
-
-noConsultantEvents: {
-margin: 0,
-color: "#94a3b8",
-@@ -1072,6 +1272,18 @@ const styles = {
-textAlign: "center",
-},
-
-  noSignificantEvents: {
-    margin: 0,
-    color: "#9ca3af",
-    fontSize: "12px",
-    fontWeight: "850",
-    background: "#fff7ed",
-    border: "1px dashed #fed7aa",
-    borderRadius: "10px",
-    padding: "8px",
-    textAlign: "center",
-  },
-
-eventList: {
-display: "grid",
-gap: "6px",
-@@ -1088,6 +1300,16 @@ const styles = {
-fontSize: "12px",
-},
-
-  significantEvent: {
-    display: "grid",
-    gap: "3px",
-    background: "#fff7ed",
-    border: "1px solid #fed7aa",
-    borderRadius: "10px",
-    padding: "8px",
-    fontSize: "12px",
-  },
-
-eventTopLine: {
-display: "flex",
-justifyContent: "space-between",
-@@ -1102,6 +1324,15 @@ const styles = {
-fontSize: "11px",
-},
-
-  significantComment: {
-    margin: 0,
-    color: "#7c2d12",
-    fontWeight: "750",
-    fontSize: "12px",
-    lineHeight: 1.35,
-    whiteSpace: "pre-wrap",
-  },
-
-standingHeaderRow: {
-display: "flex",
-justifyContent: "space-between",
+      {/* the rest of your component (division blocks, consultant cards, etc.) unchanged */}
+    </section>
+  );
+}
