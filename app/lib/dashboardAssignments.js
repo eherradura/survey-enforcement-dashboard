@@ -38,71 +38,58 @@ export const CONSULTANT_PHOTOS = {
   "Sammy Balisbis": "/consultants/Sammy Balisbis.jpg",
 };
 
+/*
+  IMPORTANT:
+  This list intentionally includes ONLY confirmed assignments from your dashboard
+  screenshots/conversation history.
+
+  If a facility is not listed here, it will not be counted as missing on the
+  Missing DON Weekly Report page. That prevents false missing-report alerts.
+*/
+
 export const CONSULTANT_ASSIGNMENTS = {
   "Erick Herradura": [
     "Park Regency Retirement ALF (PRR)",
-    "Blossom Grove",
-    "Del Mar Convalescent",
   ],
 
   "Beth Clark": [
-    "College Vista Post-Acute (CL)",
     "Country Oaks Care Center (CO)",
     "Pomona Vista Care Center (PV)",
-    "Sun Mar Nursing Center (SM)",
   ],
 
   "Jinkee Javier": [
-    "Alcott Rehabilitation Hospital (AL)",
-    "Crescent City Care Center (CCCC)",
-    "Diamond Ridge Healthcare Center (DRH)",
-    "Excell Healthcare Center (EH)",
-    "Madera Care Center (MCC)",
     "Mission Carmichael Healthcare Center (MCH)",
+    "Crescent City Care Center (CCCC)",
   ],
 
   "Guillermo Vicencio": [
-    "Anaheim Healthcare Center (AH)",
-    "Bonita Hills Post-Acute (BH)",
-    "French Park Care Center (FP)",
     "Gordon Lane Care Center (GL)",
+    "Anaheim Healthcare Center (AH)",
+    "French Park Care Center (FP)",
   ],
 
   "Brenda Rojas": [
-    "North Valley Nursing Center (NV)",
-    "Pacific Post-Acute (PA)",
     "Tarzana Health and Rehabilitation Center (TH)",
+    "North Valley Nursing Center (NV)",
     "The Meadows on Sunset",
   ],
 
   "Donna Kimura": [],
 
   "Gerly Orona": [
-    "Extended Care Hospital of Riverside (EC)",
-    "Garden Park Care Center (GP)",
-    "Mountain View Post-Acute (MV)",
-    "Ocean View Post-Acute (OV)",
+    "Vista View Post Acute (VV)",
     "Villa Rancho Bernardo Care Center (VRB)",
-    "Vista View Post-Acute (VV)",
   ],
 
   "Melissa Acuna": [
-    "Citrus Nursing Center (CN)",
-    "Community Care and Rehabilitation Center (CCRC)",
-    "Menifee Lakes Post-Acute (ML)",
+    "Trabuco Hills Post Acute (THP)",
     "Mission Care Center (MC)",
-    "Trabuco Hills Post-Acute (THP)",
+    "Community Care and Rehabilitation Center (CCRC)",
+    "Menifee Lakes Post Acute (ML)",
     "Victoria Care Center (VC)",
   ],
 
-  "Sammy Balisbis": [
-    "Cottage Crest Post-Acute (CCP)",
-    "Paramount Convalescent Hospital (PC)",
-    "Sierra View Care Center (SV)",
-    "Sunny Hills Post-Acute (SH)",
-    "The Grove Post-Acute (TG)",
-    "Villa Del Sol Post-Acute (VDS)",
-  ],
+  "Sammy Balisbis": [],
 };
 
 export function normalizeText(value) {
@@ -116,6 +103,7 @@ export function normalizeText(value) {
 
 export function normalizeFacilityName(value) {
   return normalizeText(value)
+    .replace(/\bpost acute\b/g, "postacute")
     .replace(/\bpost acute\b/g, "postacute")
     .replace(/\bhealth and rehabilitation\b/g, "health rehabilitation")
     .replace(/\bcare and rehabilitation\b/g, "care rehabilitation")
@@ -132,14 +120,49 @@ const FACILITY_TO_CONSULTANT = (() => {
     });
   });
 
-  // helpful aliases
   const aliasPairs = [
-    ["Mission Carmichael", "Jinkee Javier"],
-    ["Mission Care Center", "Melissa Acuna"],
-    ["The Meadows on Sunset", "Brenda Rojas"],
     ["Park Regency Retirement ALF", "Erick Herradura"],
     ["Park Regency Retirement Center", "Erick Herradura"],
+    ["PRR", "Erick Herradura"],
+
+    ["Country Oaks", "Beth Clark"],
+    ["Country Oaks Care Center", "Beth Clark"],
+    ["Pomona Vista", "Beth Clark"],
+    ["Pomona Vista Care Center", "Beth Clark"],
+
+    ["Mission Carmichael", "Jinkee Javier"],
+    ["Mission Carmichael Healthcare Center", "Jinkee Javier"],
+    ["Crescent City", "Jinkee Javier"],
+    ["Crescent City Care Center", "Jinkee Javier"],
+
+    ["Gordon Lane", "Guillermo Vicencio"],
+    ["Gordon Lane Care Center", "Guillermo Vicencio"],
+    ["Anaheim", "Guillermo Vicencio"],
+    ["Anaheim Healthcare Center", "Guillermo Vicencio"],
+    ["French Park", "Guillermo Vicencio"],
+    ["French Park Care Center", "Guillermo Vicencio"],
+
+    ["Tarzana", "Brenda Rojas"],
+    ["Tarzana Health and Rehabilitation Center", "Brenda Rojas"],
+    ["North Valley", "Brenda Rojas"],
     ["North Valley Nursing Center", "Brenda Rojas"],
+    ["The Meadows on Sunset", "Brenda Rojas"],
+
+    ["Vista View", "Gerly Orona"],
+    ["Vista View Post Acute", "Gerly Orona"],
+    ["Villa Rancho Bernardo", "Gerly Orona"],
+    ["Villa Rancho Bernardo Care Center", "Gerly Orona"],
+
+    ["Trabuco", "Melissa Acuna"],
+    ["Trabuco Hills Post Acute", "Melissa Acuna"],
+    ["Mission Care", "Melissa Acuna"],
+    ["Mission Care Center", "Melissa Acuna"],
+    ["Community Care and Rehabilitation Center", "Melissa Acuna"],
+    ["CCRC", "Melissa Acuna"],
+    ["Menifee", "Melissa Acuna"],
+    ["Menifee Lakes Post Acute", "Melissa Acuna"],
+    ["Victoria", "Melissa Acuna"],
+    ["Victoria Care Center", "Melissa Acuna"],
   ];
 
   aliasPairs.forEach(([facility, consultant]) => {
@@ -225,7 +248,10 @@ export function parseAnyDate(value) {
     return new Date(y, m - 1, d);
   }
 
-  const slashOrDash = raw.match(/^(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?$/);
+  const slashOrDash = raw.match(
+    /^(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?$/
+  );
+
   if (slashOrDash) {
     let [, mm, dd, yyyy] = slashOrDash;
     let year = Number(yyyy || new Date().getFullYear());
@@ -255,9 +281,16 @@ export function hasMeaningfulText(value) {
   if (!text) return false;
 
   const normalized = text.toLowerCase().trim();
-  return !["none", "n/a", "na", "no", "no issues", "nothing", "-"].includes(
-    normalized
-  );
+
+  return ![
+    "none",
+    "n/a",
+    "na",
+    "no",
+    "no issues",
+    "nothing",
+    "-",
+  ].includes(normalized);
 }
 
 export function stripMrn(text) {
@@ -298,6 +331,7 @@ const MONTHS = {
 export function extractEventDateAndText(rawText, fallbackDate) {
   const original = String(rawText || "").trim();
   const fallback = parseAnyDate(fallbackDate) || new Date();
+
   if (!original) {
     return {
       eventDate: fallback,
@@ -313,7 +347,8 @@ export function extractEventDateAndText(rawText, fallbackDate) {
 
   const firstLine = lines[0] || original;
 
-  // 5/27/26 text...
+  // Example: 5/27 Resident fell.
+  // Example: 5/27/26 Resident fell.
   let match = firstLine.match(
     /^(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?\s*(.*)$/i
   );
@@ -336,7 +371,7 @@ export function extractEventDateAndText(rawText, fallbackDate) {
     };
   }
 
-  // June 1 - text...
+  // Example: June 1 - resident to resident altercation.
   match = firstLine.match(
     /^([A-Za-z]+)\s+(\d{1,2})(?:,?\s*(\d{2,4}))?\s*[-:]\s*(.*)$/i
   );
@@ -344,6 +379,7 @@ export function extractEventDateAndText(rawText, fallbackDate) {
   if (match) {
     let [, monthWord, dd, yyyy, remainder] = match;
     const month = MONTHS[String(monthWord).toLowerCase()];
+
     if (month) {
       let year = Number(yyyy || fallback.getFullYear());
       if (String(year).length === 2) year += 2000;
@@ -423,6 +459,7 @@ export function getSignificantFacilityName(item) {
 
 export function getSignificantCommentText(item) {
   return (
+    item?.displayComment ||
     item?.significantEventComment ||
     item?.significantEvent ||
     item?.reportableSignificantEvent ||
@@ -436,6 +473,8 @@ export function getSignificantCommentText(item) {
 
 export function getSignificantSubmittedDate(item) {
   return (
+    item?.displayDate ||
+    item?.eventDateFromComment ||
     item?.submissionDate ||
     item?.submittedAt ||
     item?.date ||
