@@ -4,93 +4,76 @@ import Link from "next/link";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-const DIVISIONS = { /* paste your full DIVISIONS object here */ };
-const DIVISION_STYLES = { /* paste your full DIVISION_STYLES object here */ };
-const CONSULTANT_PHOTOS = { /* paste your full CONSULTANT_PHOTOS object here */ };
-const FACILITY_CONSULTANT_MAP = { /* paste your full FACILITY_CONSULTANT_MAP object here */ };
+const DIVISIONS = {
+  "Erick Herradura's Division": [
+    "Erick Herradura",
+    "Beth Clark",
+    "Jinkee Javier",
+    "Guillermo Vicencio",
+    "Brenda Rojas",
+  ],
+  "Donna Kimura's Division": [
+    "Donna Kimura",
+    "Gerly Orona",
+    "Melissa Acuna",
+    "Sammy Balisbis",
+  ],
+};
 
-// ... paste all your helper functions here (normalizeFacilityName, getConsultantForSignificantEvent, getDivisionForConsultant, etc.)
+const DIVISION_STYLES = {
+  "Erick Herradura's Division": {
+    shellBackground: "linear-gradient(135deg, rgba(239,246,255,0.98), rgba(255,255,255,0.98))",
+    border: "1px solid #bfdbfe",
+    accent: "#2563eb",
+    softAccent: "#dbeafe",
+    text: "#1e3a8a",
+    cardBackground: "#ffffff",
+    badgeBackground: "#dbeafe",
+    badgeText: "#1e40af",
+  },
+  "Donna Kimura's Division": {
+    shellBackground: "linear-gradient(135deg, rgba(240,253,244,0.98), rgba(255,255,255,0.98))",
+    border: "1px solid #bbf7d0",
+    accent: "#16a34a",
+    softAccent: "#dcfce7",
+    text: "#166534",
+    cardBackground: "#ffffff",
+    badgeBackground: "#dcfce7",
+    badgeText: "#166534",
+  },
+  Unassigned: {
+    shellBackground: "linear-gradient(135deg, rgba(248,250,252,0.98), rgba(255,255,255,0.98))",
+    border: "1px solid #cbd5e1",
+    accent: "#64748b",
+    softAccent: "#f1f5f9",
+    text: "#334155",
+    cardBackground: "#ffffff",
+    badgeBackground: "#f1f5f9",
+    badgeText: "#334155",
+  },
+};
 
-// Styles defined first
+const CONSULTANT_PHOTOS = {
+  "Erick Herradura": "/consultants/Erick Herradura.jpg",
+  "Donna Kimura": "/consultants/Donna Kimura.jpg",
+  "Beth Clark": "/consultants/Beth Clark.jpg",
+  "Brenda Rojas": "/consultants/Brenda Washington.jpg",
+  "Gerly Orona": "/consultants/Gerly Orona.jpg",
+  "Guillermo Vicencio": "/consultants/Guillermo Vicencio.jpg",
+  "Jinkee Javier": "/consultants/Jinkee Javier.jpg",
+  "Melissa Acuna": "/consultants/Melissa Acuna.jpg",
+  "Sammy Balisbis": "/consultants/Sammy Balisbis.jpg",
+};
+
+const FACILITY_CONSULTANT_MAP = {
+  // ... your full map here (copy from your original file)
+};
+
+// ... all your helper functions (normalizeFacilityName, getConsultantForSignificantEvent, getDivisionForConsultant, etc.) 
+
 const styles = {
-  wrapper: {
-    background: "rgba(255,255,255,0.96)",
-    border: "1px solid rgba(226,232,240,0.95)",
-    borderRadius: "18px",
-    padding: "14px",
-    boxShadow: "0 8px 20px rgba(15, 23, 42, 0.055)",
-  },
-  headerRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: "12px",
-    marginBottom: "12px",
-  },
-  titleCluster: {
-    minWidth: 0,
-  },
-  titleLine: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    flexWrap: "wrap",
-  },
-  kicker: {
-    margin: 0,
-    color: "#64748b",
-    fontWeight: "900",
-    fontSize: "11px",
-    textTransform: "uppercase",
-    letterSpacing: "0.1em",
-  },
-  eventBubble: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: "42px",
-    height: "32px",
-    padding: "0 12px",
-    borderRadius: "999px",
-    background: "linear-gradient(135deg, #2563eb, #38bdf8)",
-    color: "white",
-    fontSize: "18px",
-    lineHeight: 1,
-    fontWeight: "950",
-    boxShadow: "0 6px 14px rgba(37,99,235,0.22)",
-  },
-  eventBubbleLabel: {
-    color: "#075985",
-    fontSize: "13px",
-    fontWeight: "900",
-    background: "#e0f2fe",
-    padding: "7px 10px",
-    borderRadius: "999px",
-  },
-  significantBubble: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: "42px",
-    height: "32px",
-    padding: "0 12px",
-    borderRadius: "999px",
-    background: "linear-gradient(135deg, #ea580c, #fb923c)",
-    color: "white",
-    fontSize: "18px",
-    lineHeight: 1,
-    fontWeight: "950",
-    boxShadow: "0 6px 14px rgba(234,88,12,0.22)",
-  },
-  significantBubbleLabel: {
-    color: "#9a3412",
-    fontSize: "13px",
-    fontWeight: "900",
-    background: "#ffedd5",
-    padding: "7px 10px",
-    borderRadius: "999px",
-  },
-  // ... paste ALL your remaining styles here (title, timeframeRow, divisionBlock, consultantGrid, consultantCard, cardSection, etc.)
+  wrapper: { /* your full styles object from the original file */ },
+  // ... all your styles (headerRow, titleLine, eventBubble, significantBubble, divisionBlock, consultantCard, etc.)
 };
 
 export default function WeeklySummaryByDivision({
@@ -109,10 +92,10 @@ export default function WeeklySummaryByDivision({
   const isStandingView = dashboardView === "standing";
 
   const groupedWeeklyItems = useMemo(() => {
-    // ... your original groupedWeeklyItems logic here (the one you had before my changes)
+    // your original groupedWeeklyItems logic
   }, [weeklySummaryItems, weeklySignificantEvents]);
 
-  // ... your other useMemo logic (facilityStanding, etc.)
+  // your other useMemo logic...
 
   return (
     <section style={styles.wrapper}>
@@ -125,7 +108,6 @@ export default function WeeklySummaryByDivision({
               {weeklyEventCount === 1 ? "survey event" : "survey events"}
             </span>
 
-            {/* Clickable significant event badge */}
             <Link href="/missing-don-reports" style={{ textDecoration: "none" }}>
               <span style={styles.significantBubble}>{significantEventCount}</span>
             </Link>
@@ -134,15 +116,67 @@ export default function WeeklySummaryByDivision({
             </span>
           </div>
 
-          {/* your date range controls unchanged */}
+          {/* your date range code */}
         </div>
 
-        {/* your Facility Standing button unchanged */}
+        {/* your Facility Standing button */}
       </div>
 
-      {/* your original grouped division + consultant tiles code unchanged */}
       <div style={styles.weeklyContent}>
-        {/* ... the rest of your original return JSX for the grouped view */}
+        {weeklyEventCount === 0 && significantEventCount === 0 && (
+          <p style={styles.emptyText}>
+            No survey activity or significant events for the selected date range.
+          </p>
+        )}
+
+        {Object.entries(groupedWeeklyItems).map(([division, consultants]) => {
+          const divisionStyle = getDivisionStyle(division);
+          const divisionSurveyCount = Object.values(consultants).reduce(
+            (total, item) => total + item.surveyActivity.length,
+            0
+          );
+          const divisionSignificantCount = Object.values(consultants).reduce(
+            (total, item) => total + item.significantEvents.length,
+            0
+          );
+
+          return (
+            <div key={division} style={{ ...styles.divisionBlock, background: divisionStyle.shellBackground, border: divisionStyle.border, borderLeft: `6px solid ${divisionStyle.accent}` }}>
+              {/* division header with badges */}
+              <div style={styles.divisionHeader}>
+                <div>
+                  <h3 style={{ ...styles.divisionTitle, color: divisionStyle.text }}>
+                    {division}
+                  </h3>
+                  <p style={styles.divisionSubtext}>
+                    Survey activity and significant events by assigned consultant
+                  </p>
+                </div>
+                <div style={styles.divisionBadgeGroup}>
+                  <span style={{ ...styles.divisionBadge, background: divisionStyle.badgeBackground, color: divisionStyle.badgeText }}>
+                    {divisionSurveyCount} survey
+                  </span>
+                  <span style={{ ...styles.divisionBadge, background: "#fff7ed", color: "#9a3412" }}>
+                    {divisionSignificantCount} significant
+                  </span>
+                </div>
+              </div>
+
+              <div style={styles.consultantGrid}>
+                {Object.entries(consultants).map(([consultant, data]) => {
+                  const surveyItems = data.surveyActivity || [];
+                  const significantItems = data.significantEvents || [];
+                  return (
+                    <div key={consultant} style={{ ...styles.consultantCard, background: divisionStyle.cardBackground }}>
+                      {/* consultant header, survey activity, significant events tiles */}
+                      {/* (your original tile code) */}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
