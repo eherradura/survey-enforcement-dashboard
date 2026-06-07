@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   CONSULTANT_ASSIGNMENTS,
@@ -11,14 +11,28 @@ import {
   defaultToDate,
   formatDisplayDate,
   getConsultantByFacility,
-  getDivisionByConsultant,
   getSignificantFacilityName,
   getSignificantSubmittedDate,
   isDateWithinRange,
-  parseAnyDate,
-} from "../../app/lib/dashboardAssignments";
+} from "../lib/dashboardAssignments";
 
 export default function MissingDonWeeklyReportPage() {
+  return (
+    <Suspense fallback={<LoadingPage />}>
+      <MissingDonWeeklyReportContent />
+    </Suspense>
+  );
+}
+
+function LoadingPage() {
+  return (
+    <div style={styles.page}>
+      <div style={styles.messageBox}>Loading DON weekly report review...</div>
+    </div>
+  );
+}
+
+function MissingDonWeeklyReportContent() {
   const searchParams = useSearchParams();
   const fromDate = searchParams.get("from") || defaultFromDate();
   const toDate = searchParams.get("to") || defaultToDate();
@@ -42,10 +56,14 @@ export default function MissingDonWeeklyReportPage() {
         const data = await response.json();
 
         if (!response.ok || data?.success === false) {
-          throw new Error(data?.error || "Unable to load DON weekly report data.");
+          throw new Error(
+            data?.error || "Unable to load DON weekly report data."
+          );
         }
 
-        const items = Array.isArray(data?.items)
+        const items = Array.isArray(data?.significantEvents)
+          ? data.significantEvents
+          : Array.isArray(data?.items)
           ? data.items
           : Array.isArray(data)
           ? data
@@ -77,8 +95,9 @@ export default function MissingDonWeeklyReportPage() {
 
     rows.forEach((row) => {
       const facilityName = getSignificantFacilityName(row);
+
       const dateValue =
-        row?.date ||
+        row?.formDate ||
         row?.submissionDate ||
         row?.submittedAt ||
         getSignificantSubmittedDate(row);
@@ -87,7 +106,7 @@ export default function MissingDonWeeklyReportPage() {
       if (!dateValue) return;
 
       if (isDateWithinRange(dateValue, fromDate, toDate)) {
-        set.add(facilityName);
+        set.add(normalizeLikeFacility(facilityName));
       }
     });
 
@@ -100,13 +119,19 @@ export default function MissingDonWeeklyReportPage() {
         const facilities = CONSULTANT_ASSIGNMENTS[consultant] || [];
 
         const missingFacilities = facilities.filter((facility) => {
-          const exactSubmitted = [...submittedFacilitySet].some(
-            (submittedFacility) =>
-              getConsultantByFacility(submittedFacility) === consultant &&
-              normalizeLikeFacility(submittedFacility) === normalizeLikeFacility(facility)
+          const normalizedFacility = normalizeLikeFacility(facility);
+
+          const wasSubmitted = Array.from(submittedFacilitySet).some(
+            (submittedFacility) => {
+              return (
+                submittedFacility === normalizedFacility ||
+                submittedFacility.includes(normalizedFacility) ||
+                normalizedFacility.includes(submittedFacility)
+              );
+            }
           );
 
-          return !exactSubmitted;
+          return !wasSubmitted;
         });
 
         return {
@@ -139,7 +164,8 @@ export default function MissingDonWeeklyReportPage() {
           <div style={styles.eyebrow}>Missing DON Weekly Report</div>
           <h1 style={styles.title}>Facilities Missing DON Weekly Report</h1>
           <div style={styles.subTitle}>
-            Date Range: {formatDisplayDate(fromDate)} to {formatDisplayDate(toDate)}
+            Date Range: {formatDisplayDate(fromDate)} to{" "}
+            {formatDisplayDate(toDate)}
           </div>
         </div>
 
@@ -152,7 +178,9 @@ export default function MissingDonWeeklyReportPage() {
       </div>
 
       {loading ? (
-        <div style={styles.messageBox}>Loading DON weekly report submissions...</div>
+        <div style={styles.messageBox}>
+          Loading DON weekly report submissions...
+        </div>
       ) : error ? (
         <div style={styles.errorBox}>{error}</div>
       ) : (
@@ -179,14 +207,20 @@ export default function MissingDonWeeklyReportPage() {
                       alt={consultant.consultant}
                       style={styles.photo}
                     />
-                    <div style={styles.consultantName}>{consultant.consultant}</div>
+
+                    <div style={styles.consultantName}>
+                      {consultant.consultant}
+                    </div>
+
                     <div style={styles.missingPill}>
                       {consultant.missingFacilities.length} Missing
                     </div>
                   </div>
 
                   {consultant.missingFacilities.length === 0 ? (
-                    <div style={styles.goodBox}>No Missing DON Weekly Report In This Date Range</div>
+                    <div style={styles.goodBox}>
+                      No Missing DON Weekly Report In This Date Range
+                    </div>
                   ) : (
                     <div style={styles.facilityList}>
                       {consultant.missingFacilities.map((facility) => (
@@ -211,6 +245,8 @@ function normalizeLikeFacility(value) {
     .toLowerCase()
     .replace(/&/g, "and")
     .replace(/[’'`]/g, "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/post acute/g, "postacute")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
@@ -221,6 +257,10 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: "16px",
+    background: "#f4f7fb",
+    minHeight: "100vh",
+    fontFamily:
+      "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",
   },
 
   header: {
@@ -229,6 +269,10 @@ const styles = {
     alignItems: "flex-start",
     gap: "14px",
     flexWrap: "wrap",
+    background: "#ffffff",
+    border: "1px solid #d9e3f0",
+    borderRadius: "18px",
+    padding: "18px",
   },
 
   eyebrow: {
