@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   CONSULTANT_PHOTOS,
   DIVISIONS,
-  defaultFromDate,
-  defaultToDate,
   extractEventDateAndText,
   formatDisplayDate,
   getConsultantByFacility,
@@ -23,22 +21,42 @@ import {
 } from "../app/lib/dashboardAssignments";
 
 export default function WeeklySummaryByDivision(props) {
+  const weeklyDateRange = props.weeklyDateRange || {
+    start: "",
+    end: "",
+  };
+
+  const fromDate = weeklyDateRange.start || "";
+  const toDate = weeklyDateRange.end || "";
+
   const surveyItems =
-    props.items ||
     props.weeklySummaryItems ||
+    props.items ||
     props.filteredItems ||
     props.surveyItems ||
     [];
 
   const significantSource =
+    props.weeklySignificantEvents ||
     props.significantEvents ||
     props.rncComments ||
     props.significantItems ||
     props.commentItems ||
     [];
 
-  const [fromDate, setFromDate] = useState(props.fromDate || defaultFromDate());
-  const [toDate, setToDate] = useState(props.toDate || defaultToDate());
+  function updateFromDate(value) {
+    props.onWeeklyDateRangeChange?.({
+      ...weeklyDateRange,
+      start: value,
+    });
+  }
+
+  function updateToDate(value) {
+    props.onWeeklyDateRangeChange?.({
+      ...weeklyDateRange,
+      end: value,
+    });
+  }
 
   const processedSurveyItems = useMemo(() => {
     return (surveyItems || [])
@@ -46,6 +64,7 @@ export default function WeeklySummaryByDivision(props) {
         const facilityName = getSurveyFacilityName(item);
         const consultant = getConsultantByFacility(facilityName);
         const division = getDivisionByConsultant(consultant);
+        const rawDate = getSurveyDate(item);
 
         return {
           ...item,
@@ -54,15 +73,13 @@ export default function WeeklySummaryByDivision(props) {
           divisionName: division?.name || "Unassigned",
           surveyType: getSurveyType(item),
           comments: getSurveyComments(item),
-          displayDate: formatDisplayDate(getSurveyDate(item), "-"),
-          rawDate: getSurveyDate(item),
+          displayDate: item.date || formatDisplayDate(rawDate, "-"),
+          rawDate,
         };
       })
-      .filter((item) => isDateWithinRange(item.rawDate, fromDate, toDate))
-      .sort((a, b) => {
-        const aTime = new Date(a.rawDate || 0).getTime();
-        const bTime = new Date(b.rawDate || 0).getTime();
-        return bTime - aTime;
+      .filter((item) => {
+        if (!fromDate || !toDate) return true;
+        return isDateWithinRange(item.rawDate, fromDate, toDate);
       });
   }, [surveyItems, fromDate, toDate]);
 
@@ -85,18 +102,16 @@ export default function WeeklySummaryByDivision(props) {
           facilityName,
           consultant,
           divisionName: division?.name || "Unassigned",
-          rawDate: parsed.eventDate,
-          displayDate: parsed.displayDate,
-          text: parsed.cleanedText,
+          rawDate: item.rawDate || parsed.eventDate,
+          displayDate: item.date || parsed.displayDate,
+          text: item.comment || parsed.cleanedText,
         };
       })
       .filter(Boolean)
       .filter((item) => hasMeaningfulText(item.text))
-      .filter((item) => isDateWithinRange(item.rawDate, fromDate, toDate))
-      .sort((a, b) => {
-        const aTime = new Date(a.rawDate || 0).getTime();
-        const bTime = new Date(b.rawDate || 0).getTime();
-        return bTime - aTime;
+      .filter((item) => {
+        if (!fromDate || !toDate) return true;
+        return isDateWithinRange(item.rawDate, fromDate, toDate);
       });
   }, [significantSource, fromDate, toDate]);
 
@@ -126,6 +141,7 @@ export default function WeeklySummaryByDivision(props) {
           significant: [],
         };
       }
+
       summary[item.consultant].survey.push(item);
     });
 
@@ -138,6 +154,7 @@ export default function WeeklySummaryByDivision(props) {
           significant: [],
         };
       }
+
       summary[item.consultant].significant.push(item);
     });
 
@@ -163,9 +180,13 @@ export default function WeeklySummaryByDivision(props) {
           </Link>
         </div>
 
-        <Link href="/facility-standing" style={styles.facilityStandingBtn}>
+        <button
+          type="button"
+          onClick={() => props.onDashboardViewChange?.("standing")}
+          style={styles.facilityStandingBtn}
+        >
           Facility Standing
-        </Link>
+        </button>
       </div>
 
       <div style={styles.dateRangeWrap}>
@@ -176,7 +197,7 @@ export default function WeeklySummaryByDivision(props) {
           <input
             type="date"
             value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
+            onChange={(event) => updateFromDate(event.target.value)}
             style={styles.dateInput}
           />
         </div>
@@ -186,7 +207,7 @@ export default function WeeklySummaryByDivision(props) {
           <input
             type="date"
             value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
+            onChange={(event) => updateToDate(event.target.value)}
             style={styles.dateInput}
           />
         </div>
@@ -221,6 +242,7 @@ export default function WeeklySummaryByDivision(props) {
                 <div style={{ ...styles.divisionTitle, color: division.accent }}>
                   {division.title}
                 </div>
+
                 <div style={styles.divisionSubtitle}>
                   Survey Activity And Significant Events By Assigned Consultant
                 </div>
@@ -230,6 +252,7 @@ export default function WeeklySummaryByDivision(props) {
                 <div style={styles.divisionCountBlue}>
                   {divisionSurveyCount} Survey
                 </div>
+
                 <div style={styles.divisionCountOrange}>
                   {divisionSignificantCount} Significant
                 </div>
@@ -271,14 +294,26 @@ export default function WeeklySummaryByDivision(props) {
                       </div>
                     ) : (
                       consultantData.survey.map((item, index) => (
-                        <div key={`${item.facilityName}-${index}`} style={styles.itemBox}>
+                        <div
+                          key={`${item.facilityName}-survey-${index}`}
+                          style={styles.itemBox}
+                        >
                           <div style={styles.itemTopRow}>
-                            <div style={styles.itemFacility}>{item.facilityName}</div>
-                            <div style={styles.itemDate}>{item.displayDate}</div>
+                            <div style={styles.itemFacility}>
+                              {item.facilityName}
+                            </div>
+
+                            <div style={styles.itemDate}>
+                              {item.displayDate}
+                            </div>
                           </div>
+
                           <div style={styles.itemType}>{item.surveyType}</div>
+
                           {hasMeaningfulText(item.comments) && (
-                            <div style={styles.itemComment}>{item.comments}</div>
+                            <div style={styles.itemComment}>
+                              {item.comments}
+                            </div>
                           )}
                         </div>
                       ))
@@ -302,9 +337,15 @@ export default function WeeklySummaryByDivision(props) {
                           style={styles.significantBox}
                         >
                           <div style={styles.itemTopRow}>
-                            <div style={styles.itemFacility}>{item.facilityName}</div>
-                            <div style={styles.itemDateSlash}>{item.displayDate}</div>
+                            <div style={styles.itemFacility}>
+                              {item.facilityName}
+                            </div>
+
+                            <div style={styles.itemDateSlash}>
+                              {item.displayDate}
+                            </div>
                           </div>
+
                           <div style={styles.significantText}>{item.text}</div>
                         </div>
                       ))
@@ -395,13 +436,13 @@ const styles = {
   },
 
   facilityStandingBtn: {
-    textDecoration: "none",
     background: "#f8fbff",
     border: "1px solid #bcd2ff",
     color: "#1d4ed8",
     fontWeight: 800,
     padding: "10px 16px",
     borderRadius: "999px",
+    cursor: "pointer",
   },
 
   dateRangeWrap: {
@@ -465,7 +506,6 @@ const styles = {
     fontSize: "12px",
     fontWeight: 700,
     marginTop: "2px",
-    textTransform: "none",
   },
 
   divisionCountWrap: {
