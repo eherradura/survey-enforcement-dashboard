@@ -87,48 +87,68 @@ function MissingDonWeeklyReportContent() {
     };
   }, []);
 
-  const submittedFacilitySet = useMemo(() => {
-    const set = new Set();
+  const submittedFacilities = useMemo(() => {
+    return allDonReports
+      .map((row) => {
+        const facilityName = getSignificantFacilityName(row);
 
-    allDonReports.forEach((row) => {
-      const facilityName = getSignificantFacilityName(row);
+        const dateValue =
+          row?.formDate ||
+          row?.submissionDate ||
+          row?.submittedAt ||
+          getSignificantSubmittedDate(row);
 
-      const dateValue =
-        row?.formDate ||
-        row?.submissionDate ||
-        row?.submittedAt ||
-        getSignificantSubmittedDate(row);
+        if (!facilityName || !dateValue) return null;
 
-      if (!facilityName) return;
-      if (!dateValue) return;
+        if (!isDateWithinRange(dateValue, fromDate, toDate)) return null;
 
-      if (isDateWithinRange(dateValue, fromDate, toDate)) {
-        set.add(normalizeFacilityName(facilityName));
-      }
-    });
-
-    return set;
+        return {
+          originalName: facilityName,
+          normalizedName: normalizeFacilityName(facilityName),
+          dateValue,
+        };
+      })
+      .filter(Boolean);
   }, [allDonReports, fromDate, toDate]);
+
+  const submittedFacilitySet = useMemo(() => {
+    return new Set(submittedFacilities.map((item) => item.normalizedName));
+  }, [submittedFacilities]);
 
   const groupedMissing = useMemo(() => {
     return DIVISIONS.map((division) => {
       const consultants = division.consultants.map((consultant) => {
-        const facilities = CONSULTANT_ASSIGNMENTS[consultant] || [];
+        const assignedFacilities = CONSULTANT_ASSIGNMENTS[consultant] || [];
 
-        const missingFacilities = facilities.filter((facility) => {
-          const normalizedAssignedFacility = normalizeFacilityName(facility);
+        const missingFacilities = assignedFacilities.filter((assignedFacility) => {
+          const normalizedAssignedFacility =
+            normalizeFacilityName(assignedFacility);
 
-          const wasSubmitted = Array.from(submittedFacilitySet).some(
-            (submittedFacility) => {
-              return (
-                submittedFacility === normalizedAssignedFacility ||
-                submittedFacility.includes(normalizedAssignedFacility) ||
-                normalizedAssignedFacility.includes(submittedFacility)
-              );
-            }
+          /*
+            This intentionally checks exact normalized facility match first.
+            Then it allows only controlled near-match logic for abbreviation
+            differences like:
+            - "Excel Healthcare Center (EH)"
+            - "Excell Healthcare Center (EH)"
+
+            It does NOT allow broad matching that could accidentally make
+            Crescent City look submitted because another facility submitted.
+          */
+
+          const exactMatch = submittedFacilitySet.has(
+            normalizedAssignedFacility
           );
 
-          return !wasSubmitted;
+          if (exactMatch) return false;
+
+          const controlledNearMatch = submittedFacilities.some((submitted) => {
+            return areSameFacility(
+              normalizedAssignedFacility,
+              submitted.normalizedName
+            );
+          });
+
+          return !controlledNearMatch;
         });
 
         return {
@@ -142,7 +162,7 @@ function MissingDonWeeklyReportContent() {
         consultants,
       };
     });
-  }, [submittedFacilitySet]);
+  }, [submittedFacilities, submittedFacilitySet]);
 
   const totalMissing = groupedMissing.reduce((sum, division) => {
     return (
@@ -211,7 +231,13 @@ function MissingDonWeeklyReportContent() {
               <div style={styles.divisionHeader}>
                 <div style={styles.divisionTitle}>{division.title}</div>
 
-                <div style={styles.divisionMissingPill}>
+                <div
+                  style={
+                    divisionMissingCount === 0
+                      ? styles.divisionZeroMissingPill
+                      : styles.divisionMissingPill
+                  }
+                >
                   {divisionMissingCount} Missing
                 </div>
               </div>
@@ -266,6 +292,36 @@ function MissingDonWeeklyReportContent() {
       )}
     </div>
   );
+}
+
+function areSameFacility(assigned, submitted) {
+  if (!assigned || !submitted) return false;
+
+  if (assigned === submitted) return true;
+
+  // Excel / Excell spelling fix should already happen in normalizeFacilityName,
+  // but this keeps it safe.
+  const assignedFixed = assigned.replace(/\bexcell\b/g, "excel");
+  const submittedFixed = submitted.replace(/\bexcell\b/g, "excel");
+
+  if (assignedFixed === submittedFixed) return true;
+
+  // Remove parenthetical abbreviation remnants if present after normalization.
+  const assignedNoAbbrev = assignedFixed
+    .replace(/\b[a-z]{1,5}\b$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const submittedNoAbbrev = submittedFixed
+    .replace(/\b[a-z]{1,5}\b$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (assignedNoAbbrev && assignedNoAbbrev === submittedNoAbbrev) {
+    return true;
+  }
+
+  return false;
 }
 
 const styles = {
@@ -396,6 +452,15 @@ const styles = {
   divisionMissingPill: {
     background: "#fee2e2",
     color: "#b91c1c",
+    borderRadius: "999px",
+    padding: "8px 12px",
+    fontWeight: 900,
+    fontSize: "13px",
+  },
+
+  divisionZeroMissingPill: {
+    background: "#dcfce7",
+    color: "#166534",
     borderRadius: "999px",
     padding: "8px 12px",
     fontWeight: 900,
