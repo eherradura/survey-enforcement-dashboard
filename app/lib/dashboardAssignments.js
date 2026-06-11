@@ -56,11 +56,9 @@ export const CONSULTANT_ASSIGNMENTS = {
     "Crescent City Care Center (CCCC)",
     "Diamond Ridge Healthcare Center (DRH)",
     "Excel Healthcare Center (EH)",
-    "Excell Healthcare Center (EH)",
     "Madera Care Center (MCC)",
     "Mission Carmichael Healthcare Center (MCH)",
     "Sunset Manor Conv Hosp (SS)",
-    "Sunset Manor Convalescent Hospital (SS)",
   ],
 
   "Guillermo Vicencio": [
@@ -79,13 +77,11 @@ export const CONSULTANT_ASSIGNMENTS = {
     "Pacific Post Acute (PA)",
     "Tarzana Health and Rehabilitation Center (TH)",
     "The Meadows on Sunset Post Acute",
-    "The Meadows on Sunset",
     "Vineland Post Acute (VPA)",
   ],
 
   "Donna Kimura": [
     "Blossom Grove Alzheimer's Special Care Center",
-    "Blossom Grove Alzheimers Special Care Center",
     "Del Mar Convalescent Hospital",
   ],
 
@@ -129,12 +125,9 @@ export function normalizeText(value) {
 export function normalizeFacilityName(value) {
   return normalizeText(value)
     .replace(/\balzheimer s\b/g, "alzheimers")
+    .replace(/\balzheimers\b/g, "alzheimers")
     .replace(/\balzheimer\b/g, "alzheimers")
-
-    // Important fix:
-    // Treat Excel and Excell as the same facility.
     .replace(/\bexcell\b/g, "excel")
-
     .replace(/\bpost acute\b/g, "postacute")
     .replace(/\bpostacute\b/g, "postacute")
     .replace(/\bconv hosp\b/g, "convalescent hospital")
@@ -145,22 +138,37 @@ export function normalizeFacilityName(value) {
     .trim();
 }
 
+export function normalizeFacilityBase(value) {
+  return normalizeFacilityName(value)
+    .replace(/\bpostacute\b/g, "")
+    .replace(/\bcare center\b/g, "")
+    .replace(/\bhealthcare center\b/g, "")
+    .replace(/\bnursing center\b/g, "")
+    .replace(/\bconvalescent hospital\b/g, "")
+    .replace(/\brehabilitation hospital\b/g, "")
+    .replace(/\bspecial care center\b/g, "")
+    .replace(/\balf\b/g, "")
+    .replace(/\bcenter\b/g, "")
+    .replace(/\bhospital\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 const FACILITY_TO_CONSULTANT = (() => {
   const map = new Map();
 
   Object.entries(CONSULTANT_ASSIGNMENTS).forEach(([consultant, facilities]) => {
     facilities.forEach((facility) => {
       map.set(normalizeFacilityName(facility), consultant);
+      map.set(normalizeFacilityBase(facility), consultant);
     });
   });
 
   const aliasPairs = [
-    // Erick
     ["Park Regency Retirement ALF", "Erick Herradura"],
     ["Park Regency Retirement Center", "Erick Herradura"],
     ["PRR", "Erick Herradura"],
 
-    // Beth
     ["Alcott", "Beth Clark"],
     ["Alcott Rehabilitation Hospital", "Beth Clark"],
     ["College Vista", "Beth Clark"],
@@ -172,7 +180,6 @@ const FACILITY_TO_CONSULTANT = (() => {
     ["Sun Mar", "Beth Clark"],
     ["Sun Mar Nursing Center", "Beth Clark"],
 
-    // Jinkee
     ["Courtyard", "Jinkee Javier"],
     ["Courtyard Care Center", "Jinkee Javier"],
     ["Crescent City", "Jinkee Javier"],
@@ -192,7 +199,6 @@ const FACILITY_TO_CONSULTANT = (() => {
     ["Sunset Manor Conv Hosp", "Jinkee Javier"],
     ["Sunset Manor Convalescent Hospital", "Jinkee Javier"],
 
-    // Guillermo
     ["Anaheim", "Guillermo Vicencio"],
     ["Anaheim Healthcare Center", "Guillermo Vicencio"],
     ["Bonita Hills", "Guillermo Vicencio"],
@@ -206,7 +212,6 @@ const FACILITY_TO_CONSULTANT = (() => {
     ["Pelican Ridge", "Guillermo Vicencio"],
     ["Pelican Ridge Post Acute", "Guillermo Vicencio"],
 
-    // Brenda
     ["Heritage Manor", "Brenda Rojas"],
     ["Monterey Park", "Brenda Rojas"],
     ["Monterey Park Convalescent Hospital", "Brenda Rojas"],
@@ -218,10 +223,10 @@ const FACILITY_TO_CONSULTANT = (() => {
     ["Tarzana Health and Rehabilitation Center", "Brenda Rojas"],
     ["The Meadows on Sunset", "Brenda Rojas"],
     ["The Meadows on Sunset Post Acute", "Brenda Rojas"],
+    ["Meadows on Sunset", "Brenda Rojas"],
     ["Vineland", "Brenda Rojas"],
     ["Vineland Post Acute", "Brenda Rojas"],
 
-    // Donna
     ["Blossom Grove", "Donna Kimura"],
     ["Blossom Grove Alzheimer's Special Care Center", "Donna Kimura"],
     ["Blossom Grove Alzheimers Special Care Center", "Donna Kimura"],
@@ -229,7 +234,6 @@ const FACILITY_TO_CONSULTANT = (() => {
     ["Del Mar Convalescent", "Donna Kimura"],
     ["Del Mar Convalescent Hospital", "Donna Kimura"],
 
-    // Gerly
     ["Extended Care", "Gerly Orona"],
     ["Extended Care Hospital of Riverside", "Gerly Orona"],
     ["Garden Park", "Gerly Orona"],
@@ -243,7 +247,6 @@ const FACILITY_TO_CONSULTANT = (() => {
     ["Vista View", "Gerly Orona"],
     ["Vista View Post Acute", "Gerly Orona"],
 
-    // Melissa
     ["Citrus", "Melissa Acuna"],
     ["Citrus Nursing Center", "Melissa Acuna"],
     ["Community Care", "Melissa Acuna"],
@@ -258,7 +261,6 @@ const FACILITY_TO_CONSULTANT = (() => {
     ["Victoria", "Melissa Acuna"],
     ["Victoria Care Center", "Melissa Acuna"],
 
-    // Sammy
     ["Cottage Crest", "Sammy Balisbis"],
     ["Cottage Crest Post Acute", "Sammy Balisbis"],
     ["Paramount", "Sammy Balisbis"],
@@ -275,6 +277,7 @@ const FACILITY_TO_CONSULTANT = (() => {
 
   aliasPairs.forEach(([facility, consultant]) => {
     map.set(normalizeFacilityName(facility), consultant);
+    map.set(normalizeFacilityBase(facility), consultant);
   });
 
   return map;
@@ -282,16 +285,28 @@ const FACILITY_TO_CONSULTANT = (() => {
 
 export function getConsultantByFacility(facilityName) {
   const normalized = normalizeFacilityName(facilityName);
+  const base = normalizeFacilityBase(facilityName);
+
   if (!normalized) return "Unassigned";
 
   if (FACILITY_TO_CONSULTANT.has(normalized)) {
     return FACILITY_TO_CONSULTANT.get(normalized);
   }
 
+  if (FACILITY_TO_CONSULTANT.has(base)) {
+    return FACILITY_TO_CONSULTANT.get(base);
+  }
+
   for (const [knownFacility, consultant] of FACILITY_TO_CONSULTANT.entries()) {
+    if (!knownFacility) continue;
+
     if (
+      normalized === knownFacility ||
+      base === knownFacility ||
       normalized.includes(knownFacility) ||
-      knownFacility.includes(normalized)
+      knownFacility.includes(normalized) ||
+      base.includes(knownFacility) ||
+      knownFacility.includes(base)
     ) {
       return consultant;
     }
