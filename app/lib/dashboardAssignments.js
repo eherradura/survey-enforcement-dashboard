@@ -55,8 +55,8 @@ export const CONSULTANT_ASSIGNMENTS = {
     "Courtyard Care Center (CCC)",
     "Crescent City Care Center (CCCC)",
     "Diamond Ridge Healthcare Center (DRH)",
-    "Excell Healthcare Center (EH)",
     "Excel Healthcare Center (EH)",
+    "Excell Healthcare Center (EH)",
     "Madera Care Center (MCC)",
     "Mission Carmichael Healthcare Center (MCH)",
     "Sunset Manor Conv Hosp (SS)",
@@ -130,6 +130,11 @@ export function normalizeFacilityName(value) {
   return normalizeText(value)
     .replace(/\balzheimer s\b/g, "alzheimers")
     .replace(/\balzheimer\b/g, "alzheimers")
+
+    // Important fix:
+    // Treat Excel and Excell as the same facility.
+    .replace(/\bexcell\b/g, "excel")
+
     .replace(/\bpost acute\b/g, "postacute")
     .replace(/\bpostacute\b/g, "postacute")
     .replace(/\bconv hosp\b/g, "convalescent hospital")
@@ -172,12 +177,13 @@ const FACILITY_TO_CONSULTANT = (() => {
     ["Courtyard Care Center", "Jinkee Javier"],
     ["Crescent City", "Jinkee Javier"],
     ["Crescent City Care Center", "Jinkee Javier"],
+    ["CCCC", "Jinkee Javier"],
     ["Diamond Ridge", "Jinkee Javier"],
     ["Diamond Ridge Healthcare Center", "Jinkee Javier"],
-    ["Excell", "Jinkee Javier"],
     ["Excel", "Jinkee Javier"],
-    ["Excell Healthcare Center", "Jinkee Javier"],
+    ["Excell", "Jinkee Javier"],
     ["Excel Healthcare Center", "Jinkee Javier"],
+    ["Excell Healthcare Center", "Jinkee Javier"],
     ["Madera", "Jinkee Javier"],
     ["Madera Care Center", "Jinkee Javier"],
     ["Mission Carmichael", "Jinkee Javier"],
@@ -336,6 +342,33 @@ export function defaultToDate() {
   return formatDateInput(new Date());
 }
 
+const MONTHS = {
+  january: 1,
+  jan: 1,
+  february: 2,
+  feb: 2,
+  march: 3,
+  mar: 3,
+  april: 4,
+  apr: 4,
+  may: 5,
+  june: 6,
+  jun: 6,
+  july: 7,
+  jul: 7,
+  august: 8,
+  aug: 8,
+  september: 9,
+  sep: 9,
+  sept: 9,
+  october: 10,
+  oct: 10,
+  november: 11,
+  nov: 11,
+  december: 12,
+  dec: 12,
+};
+
 export function parseAnyDate(value) {
   if (!value) return null;
 
@@ -387,6 +420,7 @@ export function isDateWithinRange(dateValue, fromValue, toValue) {
   const to = parseAnyDate(toValue);
 
   if (!date || !from || !to) return false;
+
   return date >= from && date <= to;
 }
 
@@ -414,33 +448,6 @@ export function stripMrn(text) {
     .replace(/\s{2,}/g, " ")
     .trim();
 }
-
-const MONTHS = {
-  january: 1,
-  jan: 1,
-  february: 2,
-  feb: 2,
-  march: 3,
-  mar: 3,
-  april: 4,
-  apr: 4,
-  may: 5,
-  june: 6,
-  jun: 6,
-  july: 7,
-  jul: 7,
-  august: 8,
-  aug: 8,
-  september: 9,
-  sep: 9,
-  sept: 9,
-  october: 10,
-  oct: 10,
-  november: 11,
-  nov: 11,
-  december: 12,
-  dec: 12,
-};
 
 export function extractEventDateAndText(rawText, fallbackDate) {
   const original = String(rawText || "").trim();
