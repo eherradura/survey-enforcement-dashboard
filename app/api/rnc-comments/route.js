@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic";
 const JOTFORM_API_BASE = "https://hipaa-api.jotform.com";
 const FORM_ID = "241300815293045";
 
-// Jotform field IDs from the DON Weekly Report form.
 // 3  = Facility Name:
 // 4  = Date
 // 32 = RNC:
@@ -33,19 +32,62 @@ const NON_REPORTABLE_VALUES = new Set([
 function normalizeAnswer(answer) {
   if (!answer) return "";
 
-  if (typeof answer.answer === "string") return answer.answer.trim();
+  if (typeof answer.prettyFormat === "string" && answer.prettyFormat.trim()) {
+    return answer.prettyFormat.trim();
+  }
 
-  if (typeof answer.prettyFormat === "string") return answer.prettyFormat.trim();
+  if (typeof answer.answer === "string" && answer.answer.trim()) {
+    return answer.answer.trim();
+  }
 
   if (Array.isArray(answer.answer)) {
     return answer.answer.filter(Boolean).join(", ").trim();
   }
 
   if (answer.answer && typeof answer.answer === "object") {
-    return Object.values(answer.answer).filter(Boolean).join(", ").trim();
+    const values = answer.answer;
+
+    if (typeof values.full === "string") return values.full.trim();
+    if (typeof values.value === "string") return values.value.trim();
+    if (typeof values.label === "string") return values.label.trim();
+    if (typeof values.name === "string") return values.name.trim();
+
+    return Object.values(values).filter(Boolean).join(", ").trim();
   }
 
   return "";
+}
+
+function normalizeLabel(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[:*]/g, "")
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function findAnswerByLabel(answers, possibleLabels = []) {
+  const normalizedLabels = possibleLabels.map(normalizeLabel);
+
+  const found = Object.values(answers || {}).find((answer) => {
+    const text = normalizeLabel(answer?.text || answer?.name || "");
+
+    return normalizedLabels.some(
+      (label) => text === label || text.includes(label) || label.includes(text)
+    );
+  });
+
+  return found || null;
+}
+
+function getAnswerByIdOrLabel(answers, id, labels = []) {
+  const byId = normalizeAnswer(answers?.[id]);
+
+  if (byId) return byId;
+
+  const byLabel = findAnswerByLabel(answers, labels);
+  return normalizeAnswer(byLabel);
 }
 
 function normalizeDateAnswer(answer, fallbackDate = "") {
@@ -89,12 +131,19 @@ function normalizeDateAnswer(answer, fallbackDate = "") {
 
     const objectDateText = Object.values(values).filter(Boolean).join("/");
 
-    if (objectDateText) {
-      return objectDateText;
-    }
+    if (objectDateText) return objectDateText;
   }
 
   return fallbackDate || "";
+}
+
+function getDateByIdOrLabel(answers, id, labels = [], fallbackDate = "") {
+  const byId = normalizeDateAnswer(answers?.[id], "");
+
+  if (byId) return byId;
+
+  const byLabel = findAnswerByLabel(answers, labels);
+  return normalizeDateAnswer(byLabel, fallbackDate);
 }
 
 function normalizeTwoDigitYear(yearText) {
@@ -133,13 +182,6 @@ function extractDatesFromComment(comment, fallbackDate = "") {
 
   const fallbackYear = getYearFromDateText(fallbackDate);
 
-  // Supports:
-  // 5/27
-  // 05/27
-  // 5/27/26
-  // 05/27/2026
-  // 5-27
-  // 5-27-26
   const matches = Array.from(
     text.matchAll(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/g)
   );
@@ -235,19 +277,33 @@ export async function GET() {
       .map((submission) => {
         const answers = submission.answers || {};
 
-        const facilityName = normalizeAnswer(
-          answers[SAFE_FIELD_IDS.facilityName]
+        const facilityName = getAnswerByIdOrLabel(
+          answers,
+          SAFE_FIELD_IDS.facilityName,
+          ["Facility Name", "Facility Name:"]
         );
 
-        const formDate = normalizeDateAnswer(
-          answers[SAFE_FIELD_IDS.date],
+        const formDate = getDateByIdOrLabel(
+          answers,
+          SAFE_FIELD_IDS.date,
+          ["Date", "Date:"],
           submission.created_at || ""
         );
 
-        const rnc = normalizeAnswer(answers[SAFE_FIELD_IDS.rnc]);
+        const rnc = getAnswerByIdOrLabel(
+          answers,
+          SAFE_FIELD_IDS.rnc,
+          ["RNC", "RNC:"]
+        );
 
-        const rawComment = normalizeAnswer(
-          answers[SAFE_FIELD_IDS.significantEventComment]
+        const rawComment = getAnswerByIdOrLabel(
+          answers,
+          SAFE_FIELD_IDS.significantEventComment,
+          [
+            "Resource Nurse Consultant Comments - Reportable / Significant Event",
+            "Resource Nurse Consultant Comments – Reportable / Significant Event",
+            "Reportable / Significant Event",
+          ]
         );
 
         const eventDatesFromComment = extractDatesFromComment(
@@ -266,22 +322,17 @@ export async function GET() {
           createdAt: submission.created_at || null,
           updatedAt: submission.updated_at || null,
 
-          // DON report date from the form.
-          // This is what Missing DON Weekly Report should use to know whether
-          // the facility submitted a report during the selected period.
           formDate,
           submissionDate: formDate || submission.created_at || "",
 
           facilityName,
           rnc,
 
-          // Significant event fields.
           comment: rawComment,
           displayComment,
           eventDateFromComment: firstEventDateFromComment,
           eventDatesFromComment,
 
-          // Significant Events should use this for display/filtering.
           displayDate:
             firstEventDateFromComment ||
             formDate ||
@@ -290,8 +341,6 @@ export async function GET() {
         };
       })
       .filter((item) => {
-        // For all DON reports, we only need a facility and a report date.
-        // We do NOT require a significant event comment.
         return Boolean(item.facilityName && item.submissionDate);
       });
 
@@ -317,10 +366,7 @@ export async function GET() {
         significantEvents: significantEvents.length,
       },
 
-      // Use this for Missing DON Weekly Report.
       allDonReports,
-
-      // Use this for the Significant Events tiles.
       significantEvents,
 
       dateLogic: {
